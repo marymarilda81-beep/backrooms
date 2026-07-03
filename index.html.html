@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ARQUIVO DE FITA — REC 04</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+@font-face { font-family:'VCR'; src:url('https://fonts.cdnfonts.com/s/16086/VCR_OSD_MONO_1.001.woff') format('woff'); }
+body,html { width:100%; height:100%; overflow:hidden; background:#000; font-family:'VCR','Courier New',monospace; }
+
+canvas { display:block; width:100vw; height:100vh; cursor:none; }
+
+/* ── OVERLAYS VHS ── */
+#vignette { position:fixed; inset:0; pointer-events:none; z-index:9; background:radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.97) 100%); }
+#scanlines { position:fixed; inset:0; pointer-events:none; z-index:11; background:linear-gradient(rgba(0,0,0,0.03) 50%, rgba(0,0,0,0.15) 50%), linear-gradient(90deg,rgba(255,0,0,0.04),rgba(0,255,0,0.01),rgba(0,0,255,0.04)); background-size:100% 3px,3px 100%; opacity:0.7; }
+#tracking-noise { position:fixed; inset:0; pointer-events:none; z-index:12; opacity:0.08; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"); animation:tapeNoise 0.08s steps(2) infinite; }
+#tracking-band { position:fixed; left:0; width:100%; height:8vh; pointer-events:none; z-index:13; background:rgba(255,255,255,0.04); border-top:1px solid rgba(255,255,255,0.08); animation:trackingBand 11s linear infinite; mix-blend-mode:overlay; }
+#chromatic { position:fixed; inset:0; pointer-events:none; z-index:14; mix-blend-mode:screen; opacity:0; transition:opacity 0.1s; background:transparent; }
+
+/* ── HUD VCR ── */
+#hud { position:fixed; inset:0; pointer-events:none; z-index:20; display:none; color:#fff; font-family:'VCR',monospace; }
+#rec-indicator { position:absolute; top:28px; left:38px; font-size:1.4rem; display:flex; align-items:center; gap:8px; text-shadow:1px 0 0 rgba(255,0,0,0.9),-1px 0 0 rgba(0,0,255,0.9); }
+#rec-dot { color:#ff0000; text-shadow:0 0 8px #ff0000; animation:blink 1.2s infinite; }
+#batt-indicator { position:absolute; bottom:28px; left:38px; font-size:1.1rem; letter-spacing:2px; text-shadow:1px 0 0 rgba(255,0,0,0.9),-1px 0 0 rgba(0,0,255,0.9); }
+#date-time { position:absolute; bottom:28px; right:38px; font-size:1.1rem; text-align:right; text-shadow:1px 0 0 rgba(255,0,0,0.9),-1px 0 0 rgba(0,0,255,0.9); }
+#stage-info { position:absolute; top:28px; right:38px; font-size:1.1rem; text-align:right; letter-spacing:2px; text-shadow:1px 0 0 rgba(255,0,0,0.9),-1px 0 0 rgba(0,0,255,0.9); }
+#play-icon { position:absolute; top:74px; left:38px; font-size:1.1rem; text-shadow:1px 0 0 rgba(255,0,0,0.9),-1px 0 0 rgba(0,0,255,0.9); }
+#stamina-bar { position:absolute; bottom:60px; left:38px; font-size:0.9rem; letter-spacing:1px; text-shadow:1px 0 0 rgba(255,0,0,0.9),-1px 0 0 rgba(0,0,255,0.9); transition:color 0.3s; }
+#controls-hint { position:absolute; bottom:28px; left:50%; transform:translateX(-50%); font-size:0.75rem; color:rgba(255,255,255,0.25); }
+
+/* ── HUD RADAR MÓDULO P/B ── */
+#radar-ui { 
+  position:absolute; top:70px; right:38px; width:160px; height:120px; 
+  border:1px solid rgba(255,255,255,0.4); 
+  background:rgba(10,10,10,0.8);
+  display:none; overflow:hidden; 
+  box-shadow: inset 0 0 15px rgba(0,0,0,1);
+}
+#radar-canvas { width:100%; height:100%; filter: contrast(1.4) brightness(1.1); }
+#radar-label { 
+  position:absolute; top:196px; right:38px; width:160px; text-align:right; 
+  font-size:0.8rem; color:rgba(255,255,255,0.7); letter-spacing:1px; display:none; 
+  text-shadow: 1px 0 0 rgba(255,0,0,0.9), -1px 0 0 rgba(0,0,255,0.9);
+}
+
+/* ── MENUS VCR STYLE ── */
+.menu-screen { position:fixed; inset:0; background:#040407; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; color:#fff; }
+.menu-title { font-size:3.5rem; letter-spacing:0.18em; margin-bottom:2.5rem; animation:flicker 5s infinite; text-shadow:3px 0 0 rgba(255,0,0,0.8),-3px 0 0 rgba(0,0,255,0.8); }
+.menu-subtitle { font-size:1rem; color:rgba(255,255,255,0.4); margin-bottom:3rem; letter-spacing:4px; }
+.menu-btn { background:transparent; border:2px solid transparent; color:#fff; font-family:'VCR',monospace; font-size:1.6rem; cursor:pointer; padding:10px 28px; margin:8px 0; transition:all 0.15s; text-shadow:2px 0 0 rgba(255,0,0,0.7),-2px 0 0 rgba(0,0,255,0.7); letter-spacing:2px; }
+.menu-btn:hover { border-color:#fff; background:rgba(255,255,255,0.08); transform:scale(1.04); }
+.menu-btn.danger { color:#ff3333; text-shadow:2px 0 0 rgba(255,0,0,0.9),-2px 0 0 rgba(0,0,255,0.5); }
+.menu-btn.danger:hover { border-color:#ff3333; background:rgba(255,0,0,0.1); }
+.menu-divider { width:280px; height:1px; background:rgba(255,255,255,0.15); margin:12px 0; }
+.settings-row { display:flex; flex-direction:column; align-items:center; margin-bottom:1.5rem; }
+.settings-row label { font-size:1.2rem; margin-bottom:8px; letter-spacing:2px; color:rgba(255,255,255,0.8); }
+input[type=range] { -webkit-appearance:none; width:280px; background:transparent; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; height:20px; width:10px; background:#fff; cursor:pointer; margin-top:-8px; box-shadow:2px 0 0 rgba(255,0,0,0.8),-2px 0 0 rgba(0,0,255,0.8); }
+input[type=range]::-webkit-slider-runnable-track { width:100%; height:3px; background:#444; }
+
+/* ── PAUSE MENU ── */
+#pause-menu { position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:150; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(2px); }
+#pause-menu .menu-title { font-size:2.8rem; }
+
+/* ── EFEITOS DE MORTE E TRANSIÇÃO ── */
+#death-static { position:fixed; inset:0; z-index:180; display:none; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='2'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)'/%3E%3C/svg%3E"); filter:contrast(4) brightness(2); animation:staticNoise 0.04s steps(1) infinite; }
+#death-text { position:fixed; inset:0; z-index:181; display:none; align-items:center; justify-content:center; font-size:3rem; color:#ff0000; letter-spacing:6px; text-shadow:0 0 30px #ff0000; animation:flicker 0.3s infinite; }
+
+/* ── FALL TRANSITION ── */
+#fall-overlay { position:fixed; inset:0; z-index:160; display:none; background:#000; }
+#fall-text { position:fixed; inset:0; z-index:165; display:none; align-items:center; justify-content:center; flex-direction:column; gap:20px; }
+#fall-text span { font-size:1.2rem; color:rgba(255,255,255,0.6); letter-spacing:4px; animation:flicker 2s infinite; }
+
+/* ── GLITCH EFFECT ── */
+#glitch-strip { position:fixed; left:0; width:100%; height:20px; z-index:170; display:none; background:rgba(255,255,255,0.9); mix-blend-mode:difference; }
+
+@keyframes trackingBand { 0%{top:-8vh;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{top:108vh;opacity:0} }
+@keyframes tapeNoise { 0%{transform:translate(0,0)} 100%{transform:translate(-3px,2px)} }
+@keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+@keyframes flicker { 0%,100%{opacity:1} 90%{opacity:1} 92%{opacity:.1} 93%{opacity:1} 96%{opacity:.5} 97%{opacity:1} }
+@keyframes staticNoise { 0%{background-position:0 0} 100%{background-position:120px 80px} }
+
+/* ── MULTIPLAYER MENU ── */
+.mp-input { font-family:'VCR','Courier New',monospace; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.35); color:#fff; font-size:1.2rem; letter-spacing:3px; padding:10px 14px; width:280px; text-align:center; margin-bottom:14px; outline:none; }
+.mp-input::placeholder { color:rgba(255,255,255,0.3); }
+.mp-status-line { font-size:1rem; color:rgba(255,255,255,0.7); letter-spacing:2px; margin-bottom:10px; text-align:center; }
+.mp-code { font-size:2.2rem; letter-spacing:0.5rem; color:#fff; text-shadow:2px 0 0 rgba(255,0,0,0.8),-2px 0 0 rgba(0,0,255,0.8); margin-bottom:14px; }
+.mp-players-list { font-size:0.95rem; color:rgba(255,255,255,0.55); letter-spacing:1px; margin-bottom:18px; text-align:center; max-width:320px; line-height:1.6; }
+.mp-error { color:#ff4444; font-size:0.9rem; letter-spacing:1px; margin-top:-6px; margin-bottom:10px; min-height:1.2em; }
+
+/* ── NAMETAGS DE JOGADORES REMOTOS ── */
+#player-tags { position:fixed; inset:0; pointer-events:none; z-index:19; }
+.player-tag { position:absolute; transform:translate(-50%,-100%); font-family:'VCR','Courier New',monospace; color:#7fe3ff; font-size:0.85rem; letter-spacing:1px; text-shadow:1px 0 0 rgba(255,0,0,0.6),-1px 0 0 rgba(0,0,255,0.6),0 0 6px rgba(0,0,0,0.9); white-space:nowrap; }
+
+/* ── HUD MULTIPLAYER ── */
+#mp-hud-info { position:absolute; top:110px; left:38px; font-size:0.85rem; color:rgba(127,227,255,0.85); letter-spacing:1px; text-shadow:1px 0 0 rgba(255,0,0,0.7),-1px 0 0 rgba(0,0,255,0.7); display:none; }
+
+/* ── CONTROLES TOUCH (MOBILE) ── */
+#touch-controls { position:fixed; inset:0; z-index:30; display:none; touch-action:none; }
+#touch-look-zone { position:absolute; top:0; right:0; width:62%; height:100%; }
+#joystick-zone { position:absolute; left:0; bottom:0; width:45%; height:55%; }
+#joystick-base { position:absolute; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.35); display:none; }
+#joystick-stick { position:absolute; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.5); border:1px solid rgba(255,255,255,0.7); pointer-events:none; }
+.touch-btn { position:absolute; pointer-events:auto; border-radius:50%; border:2px solid rgba(255,255,255,0.4); background:rgba(0,0,0,0.35); color:#fff; font-family:'VCR','Courier New',monospace; display:flex; align-items:center; justify-content:center; text-align:center; letter-spacing:1px; user-select:none; -webkit-tap-highlight-color:transparent; }
+.touch-btn.active { background:rgba(255,255,255,0.25); border-color:#fff; }
+#btn-flash-touch { right:26px; bottom:170px; width:74px; height:74px; font-size:0.7rem; }
+#btn-run-touch   { right:112px; bottom:110px; width:74px; height:74px; font-size:0.7rem; }
+#btn-pause-touch { top:24px; right:24px; width:50px; height:50px; font-size:1.1rem; }
+
+@media (max-width: 760px), (pointer: coarse) {
+  .menu-title { font-size:2.3rem !important; }
+  .menu-btn { font-size:1.25rem !important; padding:9px 18px !important; }
+  .menu-subtitle { font-size:0.8rem !important; margin-bottom:2rem !important; }
+  .settings-row label { font-size:1rem !important; }
+  input[type=range] { width:220px !important; }
+  .mp-input { width:220px !important; font-size:1rem !important; }
+  #controls-hint { display:none; }
+  #stage-info, #date-time { font-size:0.85rem !important; }
+  #rec-indicator { font-size:1.1rem !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="main-menu" class="menu-screen">
+  <h1 class="menu-title">THE BACKROOMS</h1>
+  <p class="menu-subtitle">ARQUIVO DE FITA — REC 04</p>
+  <button id="btn-start" class="menu-btn">▶ REPRODUZIR FITA</button>
+  <button id="btn-multiplayer-main" class="menu-btn">👥 MULTIPLAYER</button>
+  <button id="btn-settings-main" class="menu-btn">⚙ CONFIGURAÇÕES</button>
+</div>
+
+<div id="mp-menu" class="menu-screen" style="display:none;">
+  <h1 class="menu-title" style="font-size:2.3rem;">MULTIPLAYER</h1>
+  <p class="menu-subtitle">CO-OP VIA P2P</p>
+  <input id="mp-nick" class="mp-input" maxlength="12" placeholder="SEU CODINOME">
+  <button id="btn-mp-create" class="menu-btn">➕ CRIAR SALA</button>
+  <div class="menu-divider"></div>
+  <input id="mp-code-input" class="mp-input" maxlength="6" placeholder="CÓDIGO DA SALA" style="text-transform:uppercase;">
+  <button id="btn-mp-join" class="menu-btn">🔑 ENTRAR EM SALA</button>
+  <div class="mp-error" id="mp-menu-error"></div>
+  <div class="menu-divider"></div>
+  <button id="btn-mp-back" class="menu-btn">◀ VOLTAR</button>
+</div>
+
+<div id="mp-status" class="menu-screen" style="display:none;">
+  <h1 class="menu-title" style="font-size:2rem;">SALA MULTIPLAYER</h1>
+  <div class="mp-status-line" id="mp-status-text">CONECTANDO...</div>
+  <div class="mp-code" id="mp-status-code"></div>
+  <div class="mp-players-list" id="mp-players-list"></div>
+  <button id="btn-mp-start" class="menu-btn" style="display:none;">▶ REPRODUZIR FITA</button>
+  <div class="menu-divider"></div>
+  <button id="btn-mp-cancel" class="menu-btn danger">✕ CANCELAR</button>
+</div>
+
+<div id="settings-menu" class="menu-screen" style="display:none;">
+  <h1 class="menu-title" style="font-size:2.5rem;">AJUSTES</h1>
+  <div class="settings-row">
+    <label>ILUMINAÇÃO GERAL</label>
+    <input type="range" id="light-slider" min="0.1" max="3.0" step="0.05" value="1.0">
+  </div>
+  <div class="settings-row">
+    <label>VOLUME MASTER</label>
+    <input type="range" id="vol-slider" min="0" max="1.0" step="0.05" value="0.8">
+  </div>
+  <div class="settings-row">
+    <label>SENSIBILIDADE MOUSE</label>
+    <input type="range" id="sens-slider" min="0.0005" max="0.005" step="0.0001" value="0.002">
+  </div>
+  <div class="menu-divider"></div>
+  <button id="btn-back-main" class="menu-btn">◀ VOLTAR</button>
+</div>
+
+<div id="pause-menu">
+  <h1 class="menu-title">— PAUSADO —</h1>
+  <button id="btn-resume" class="menu-btn">▶ CONTINUAR</button>
+  <button id="btn-settings-pause" class="menu-btn">⚙ CONFIGURAÇÕES</button>
+  <div class="menu-divider"></div>
+  <button id="btn-quit" class="menu-btn danger">✕ SAIR</button>
+</div>
+
+<div id="pause-settings" class="menu-screen" style="display:none; background:rgba(4,4,7,0.95);">
+  <h1 class="menu-title" style="font-size:2rem;">AJUSTES</h1>
+  <div class="settings-row">
+    <label>ILUMINAÇÃO</label>
+    <input type="range" id="light-slider2" min="0.1" max="3.0" step="0.05" value="1.0">
+  </div>
+  <div class="settings-row">
+    <label>VOLUME</label>
+    <input type="range" id="vol-slider2" min="0" max="1.0" step="0.05" value="0.8">
+  </div>
+  <div class="settings-row">
+    <label>SENSIBILIDADE</label>
+    <input type="range" id="sens-slider2" min="0.0005" max="0.005" step="0.0001" value="0.002">
+  </div>
+  <div class="menu-divider"></div>
+  <button id="btn-back-pause" class="menu-btn">◀ VOLTAR</button>
+</div>
+
+<div id="hud">
+  <div id="rec-indicator"><span id="rec-dot">●</span> REC</div>
+  <div id="play-icon">▶ SP</div>
+  <div id="stage-info">LOC: FLORESTA NACIONAL</div>
+  <div id="date-time">OUT 23 1996<br><span id="clock">02:43:12 AM</span></div>
+  
+  <div id="radar-ui">
+    <canvas id="radar-canvas" width="160" height="120"></canvas>
+  </div>
+  <div id="radar-label">[ TRK_SYS B/W ]</div>
+
+  <div id="batt-indicator">BATT: ■■■■</div>
+  <div id="stamina-bar">STAMINA: ████████████████████</div>
+  <div id="mp-hud-info"></div>
+  <div id="controls-hint">[WASD] MOVER · [SHIFT] CORRER · [F] LUZ · [ESC] PAUSE</div>
+</div>
+
+<div id="player-tags"></div>
+
+<div id="touch-controls">
+  <div id="joystick-zone">
+    <div id="joystick-base"><div id="joystick-stick"></div></div>
+  </div>
+  <div id="touch-look-zone"></div>
+  <div id="btn-flash-touch" class="touch-btn">LUZ<br>(F)</div>
+  <div id="btn-run-touch" class="touch-btn">CORRER</div>
+  <div id="btn-pause-touch" class="touch-btn">II</div>
+</div>
+
+<div id="vignette"></div>
+<div id="scanlines"></div>
+<div id="tracking-noise"></div>
+<div id="tracking-band"></div>
+<div id="chromatic"></div>
+
+<div id="death-static"></div>
+<div id="death-text" style="display:none; position:fixed; inset:0; z-index:181; align-items:center; justify-content:center;">FITA CORROMPIDA</div>
+<div id="fall-overlay"></div>
+<div id="fall-text"></div>
+<div id="glitch-strip"></div>
+
+<canvas id="c"></canvas>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════════════
+//  CONSTANTES E UTILITÁRIOS
+// ════════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const canvas   = $('c');
+const gl       = canvas.getContext('webgl2', { antialias:false, powerPreference:'high-performance' });
+
+let globalBrightness = 1.0;
+let mouseSens = 0.002;
+let masterVolume = 0.8;
+
+function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; gl.viewport(0,0,canvas.width,canvas.height); }
+window.addEventListener('resize', resize); resize();
+
+function mulberry32(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function dist2D(x1,z1,x2,z2){ return Math.sqrt((x2-x1)**2+(z2-z1)**2); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function getRoomSeed(x, z) {
+  return mulberry32( Math.floor((x+1.5)/3.0)*1000 + Math.floor((z+1.5)/3.0) )();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  MENUS E NAVEGAÇÃO
+// ════════════════════════════════════════════════════════════════════
+let paused = false;
+let gameStarted = false;
+
+function showMainMenu(){ $('main-menu').style.display='flex'; }
+function hideMainMenu(){ $('main-menu').style.display='none'; }
+function showPause(){ paused=true; $('pause-menu').style.display='flex'; document.exitPointerLock(); }
+function hidePause(){ paused=false; $('pause-menu').style.display='none'; if(alive&&gameStarted&&!isTouchDevice) canvas.requestPointerLock(); }
+
+$('btn-start').addEventListener('click', ()=>{ mpActive=false; startLocalGame(); });
+$('btn-settings-main').addEventListener('click', ()=>{ $('main-menu').style.display='none'; $('settings-menu').style.display='flex'; });
+$('btn-back-main').addEventListener('click',  ()=>{ $('settings-menu').style.display='none'; $('main-menu').style.display='flex'; });
+
+function startLocalGame(){
+  initAudio(); hideMainMenu();
+  $('mp-menu').style.display='none'; $('mp-status').style.display='none';
+  $('hud').style.display='block';
+  $('mp-hud-info').style.display = mpActive ? 'block' : 'none';
+  gameStarted=true; alive=true;
+  setVolume(masterVolume, 1.5);
+  if(!isTouchDevice) canvas.requestPointerLock();
+  updateClock(); setInterval(updateClock, 1000);
+}
+
+$('btn-multiplayer-main').addEventListener('click', ()=>{
+  $('main-menu').style.display='none'; $('mp-menu').style.display='flex';
+  $('mp-menu-error').textContent='';
+});
+$('btn-mp-back').addEventListener('click', ()=>{
+  if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
+  mpActive=false; conns={}; remotePlayers={};
+  $('mp-menu').style.display='none'; $('main-menu').style.display='flex';
+});
+$('btn-mp-cancel').addEventListener('click', ()=>{
+  if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
+  mpActive=false; conns={}; remotePlayers={};
+  $('mp-status').style.display='none'; $('main-menu').style.display='flex';
+});
+$('btn-mp-create').addEventListener('click', ()=>{ mpCreateRoom(); });
+$('btn-mp-join').addEventListener('click', ()=>{ mpJoinRoom(); });
+$('btn-mp-start').addEventListener('click', ()=>{ startLocalGame(); });
+$('btn-resume').addEventListener('click', hidePause);
+$('btn-settings-pause').addEventListener('click', ()=>{ $('pause-menu').style.display='none'; $('pause-settings').style.display='flex'; });
+$('btn-back-pause').addEventListener('click', ()=>{ $('pause-settings').style.display='none'; $('pause-menu').style.display='flex'; });
+$('btn-quit').addEventListener('click', ()=>location.reload());
+
+function bindSliders(id1, id2, cb){
+  const a=$( id1), b=$(id2);
+  a.addEventListener('input', e=>{ b.value=e.target.value; cb(parseFloat(e.target.value)); });
+  b.addEventListener('input', e=>{ a.value=e.target.value; cb(parseFloat(e.target.value)); });
+}
+bindSliders('light-slider','light-slider2', v=>globalBrightness=v);
+bindSliders('vol-slider','vol-slider2',     v=>{ masterVolume=v; if(masterGain) masterGain.gain.value=v*0.8; });
+bindSliders('sens-slider','sens-slider2',   v=>mouseSens=v);
+
+function showLog(msg, color='#f0e8c8'){
+  const logDiv = document.createElement('div');
+  logDiv.textContent = msg; logDiv.style.color = color;
+  logDiv.style.position = 'fixed'; logDiv.style.bottom = '100px'; logDiv.style.left = '50%'; logDiv.style.transform = 'translateX(-50%)';
+  logDiv.style.zIndex = '20'; logDiv.style.fontSize = '1.2rem'; logDiv.style.letterSpacing = '0.15em'; logDiv.style.textShadow = '0 0 20px rgba(200,168,75,0.8)';
+  logDiv.style.transition = 'opacity 0.6s'; logDiv.style.opacity = '1'; document.body.appendChild(logDiv);
+  setTimeout(()=>{ logDiv.style.opacity='0'; setTimeout(()=>logDiv.remove(), 600); }, 4000);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  SHADERS
+// ════════════════════════════════════════════════════════════════════
+const VS = `#version 300 es
+precision highp float;
+in vec3 aPos; in vec3 aNorm;
+uniform mat4 uMVP; uniform mat4 uModel;
+out vec3 vWorldPos; out vec3 vNorm;
+void main(){
+  vec4 wp = uModel * vec4(aPos,1.0);
+  vWorldPos = wp.xyz; vNorm = mat3(uModel)*aNorm;
+  gl_Position = uMVP * uModel * vec4(aPos,1.0);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos; in vec3 vNorm;
+uniform vec3  uCamPos;  uniform vec3  uCamDir;
+uniform float uTime;    uniform int   uStage;
+uniform float uFlashlightPwr;
+uniform float uEntityDist;
+uniform float uBrightness;
+uniform float uPanicLevel;
+uniform int   uObjType;
+uniform vec2  uDoorPos;
+out vec4 fragColor;
+
+float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*hash(p); p=p*2.0+vec2(1.7,9.2); a*=0.5; } return v; }
+
+float getRoomSeed(vec2 xz) {
+    vec2 grid = floor((xz + 1.5) / 3.0);
+    return fract(sin(dot(grid, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec3 carpetColor(vec2 uv){
+  float n1=fbm(uv*5.0), n2=fbm(uv*12.0+vec2(3.0));
+  vec3 base=vec3(0.22,0.15,0.04), dark=vec3(0.1,0.06,0.01);
+  vec3 c=mix(dark,base,n1);
+  float stripe=step(0.9, fract(uv.x*3.0))*0.3;
+  return c + vec3(stripe*0.05, stripe*0.04, 0.0);
+}
+
+vec3 wallpaperColor(vec2 uv){
+  float n=fbm(uv*3.5); float n2=fbm(uv*8.0+vec2(5.0));
+  vec3 base=vec3(0.55,0.45,0.18), dark=vec3(0.38,0.28,0.08);
+  vec3 c=mix(dark,base,n);
+  float gx=step(0.93, fract(uv.x*2.0)), gy=step(0.93, fract(uv.y*2.0));
+  c -= vec3(gx*0.08+gy*0.08);
+  return c;
+}
+
+vec3 ceilingColor(vec2 uv){
+  float n=fbm(uv*4.0);
+  return vec3(0.65,0.60,0.50)*(0.75+0.25*n);
+}
+
+float lightFlicker(float t){
+  float f=1.0;
+  f *= 1.0-0.3*step(0.91, fract(t*0.4));
+  f *= 1.0-0.6*step(0.96, fract(t*1.1+0.3));
+  f *= 1.0-0.2*step(0.85, fract(t*3.7));
+  return clamp(f,0.0,1.0);
+}
+
+float ceilingLight(vec3 wp){
+  vec2 gridUV = mod(wp.xz, 6.0) - 3.0;
+  float inLight = step(abs(gridUV.x), 1.2) * step(abs(gridUV.y), 0.4);
+  float ceilDist = abs(wp.y - 3.5);
+  return inLight * max(0.0, 1.0 - ceilDist * 0.4);
+}
+
+vec3 waterColor(vec3 wp, vec3 camPos, float t, float lampFlicker, float ambientStr, float flashContrib, float ceilLightAmt){
+  vec3 viewDir = normalize(camPos - wp);
+
+  vec2 flowA = wp.xz*0.85 + vec2(t*0.30,  t*0.11);
+  vec2 flowB = wp.xz*1.9  - vec2(t*0.17,  t*0.24);
+  float waveA = fbm(flowA);
+  float waveB = fbm(flowB);
+  float ripple = mix(waveA, waveB, 0.5);
+
+  vec3 waterN = normalize(vec3((waveA-0.5)*0.7, 1.0, (waveB-0.5)*0.7));
+
+  vec3 deep    = vec3(0.010, 0.014, 0.020);
+  vec3 shallow = vec3(0.028, 0.040, 0.050);
+  vec3 base = mix(deep, shallow, ripple) * (0.4 + ambientStr*5.0 + ceilLightAmt*0.6);
+
+  vec3 reflPos = wp + vec3(waterN.x, 0.0, waterN.z) * 2.5;
+  float lamp = ceilingLight(vec3(reflPos.x, 3.5, reflPos.z)) * lampFlicker;
+  vec3 lampRefl = vec3(1.0, 0.96, 0.82) * lamp * 0.65;
+
+  float fresnel = pow(clamp(1.0 - max(dot(waterN, viewDir), 0.0), 0.0, 1.0), 4.0);
+  vec3 fresnelCol = vec3(0.09, 0.11, 0.14) * fresnel * (0.6 + ambientStr*3.0);
+
+  float spec = pow(max(dot(waterN, viewDir), 0.0), 42.0);
+  vec3 specCol = vec3(1.0, 0.97, 0.9) * spec * flashContrib * 4.0;
+
+  return base + lampRefl + fresnelCol + specCol;
+}
+
+void main(){
+  vec3 N = normalize(vNorm);
+  vec3 toLight = normalize(uCamPos - vWorldPos);
+  float dist = distance(vWorldPos, uCamPos);
+  float distDoor = distance(vWorldPos.xz, uDoorPos);
+  vec3 surfCol;
+  float absY = vWorldPos.y;
+  float isLamp = 0.0;
+  float roomSeed = getRoomSeed(vWorldPos.xz);
+  bool isFlooded = (roomSeed < 0.15 && uStage == 1);
+
+  if (uObjType == 1) {
+    surfCol = vec3(0.01, 0.00, 0.00); 
+  } else if (uObjType == 2) {
+    surfCol = vec3(0.7, 0.65, 0.25) * (0.7 + 0.3*fbm(vWorldPos.xz*5.0)); 
+  } else if (uObjType == 3) {
+    surfCol = vec3(0.25, 0.12, 0.06) * (0.8 + 0.2*fbm(vWorldPos.xy*8.0)); 
+  } else if (uObjType == 4) {
+    surfCol = vec3(0.9, 0.9, 0.9); 
+  } else if (uObjType == 6) {
+    surfCol = vec3(0.28, 0.55, 0.75) * (0.8 + 0.2*fbm(vWorldPos.xz*6.0));
+  } else if (uObjType == 5) {
+    surfCol = vec3(0.9, 0.8, 0.1) * (0.8 + 0.2*fbm(vWorldPos.xz*10.0)); 
+  } else {
+    if(uStage == 0 || uStage == 2){
+      if(absY < 0.1) surfCol = vec3(0.03,0.055,0.02)*fbm(vWorldPos.xz*2.0+1.5);
+      else surfCol = vec3(0.10,0.085,0.065)*(0.6+0.4*fbm(vWorldPos.xz*0.5));
+    } else if(uStage == 3) {
+      if(absY < 0.1) surfCol = vec3(0.1, 0.02, 0.0)*fbm(vWorldPos.xz*2.0+1.5); 
+      else surfCol = vec3(0.05, 0.05, 0.05) + vec3(0.8,0.2,0.0)*fbm(vWorldPos.xz*1.5 + uTime*0.5); 
+    } else {
+      if(absY < 0.1) {
+        if(isFlooded) {
+            surfCol = vec3(0.02, 0.02, 0.03) + 0.15 * ceilingLight(vec3(vWorldPos.x, 3.5, vWorldPos.z));
+        } else {
+            surfCol = carpetColor(vWorldPos.xz);
+            if (distDoor < 12.0) {
+                float staticNoise = hash(vWorldPos.xz * 100.0 + uTime);
+                surfCol = mix(surfCol, vec3(staticNoise), smoothstep(12.0, 2.0, distDoor) * 0.4);
+            }
+        }
+      }
+      else if(absY > 3.4) {
+         vec2 gridUV = mod(vWorldPos.xz, 6.0) - 3.0;
+         isLamp = step(abs(gridUV.x), 1.2) * step(abs(gridUV.y), 0.4);
+         if (isLamp > 0.5) surfCol = vec3(1.0, 1.0, 0.9); 
+         else surfCol = ceilingColor(vWorldPos.xz);
+      }
+      else {
+        float xaxis = abs(N.x); float zaxis = abs(N.z);
+        vec2 wallUV = (xaxis > zaxis) ? vWorldPos.zy : vWorldPos.xz;
+        surfCol = wallpaperColor(wallUV);
+      }
+    }
+  }
+
+  float flicker = (uStage==1) ? lightFlicker(uTime) : 1.0;
+  if (uStage == 1 && distDoor < 15.0 && isLamp > 0.5) {
+      flicker *= step(0.5, hash(vec2(uTime * 15.0, roomSeed)));
+  }
+
+  float ambientStr = (uStage==0 || uStage==2) ? 0.005 : ((uStage==3) ? 0.5 : 0.08*flicker);
+  float ceilContrib = (uStage==1) ? ceilingLight(vWorldPos)*0.55*flicker : 0.0;
+  float ceilAtt = max(0.0, 1.0 - dist/12.0);
+
+  float spotAlign = max(dot(normalize(vWorldPos-uCamPos), uCamDir), 0.0);
+  float spot = pow(spotAlign, 10.0);
+  float spotRange = 22.0;
+  float spotAtt = max(0.0, 1.0-dist/spotRange); spotAtt*=spotAtt;
+  float flashContrib = spot*spotAtt*uFlashlightPwr*3.5;
+  float diff = max(dot(N, toLight), 0.0);
+  float light = (ambientStr + ceilContrib*ceilAtt + flashContrib*diff) * uBrightness;
+
+  vec3 col = surfCol * light;
+  
+  if (isLamp > 0.5 && uStage == 1) col = surfCol * flicker * 1.8;
+  if (uObjType == 5) col = surfCol * light * 1.5;
+  if (uObjType == 6) col = surfCol * (light + 0.22);
+
+  if (isFlooded && uObjType == 0 && absY < 0.1) {
+    col = waterColor(vWorldPos, uCamPos, uTime, flicker, ambientStr, flashContrib, ceilContrib*ceilAtt);
+  }
+
+  float fogNear = (uStage==0 || uStage==2) ? 4.0 : ((uStage==3) ? 1.0 : 5.0);
+  float fogFar  = (uStage==0 || uStage==2) ? 20.0 : ((uStage==3) ? 12.0 : 18.0);
+  float fog = smoothstep(fogNear, fogFar, dist);
+  vec3 fogColor = (uStage==0 || uStage==2) ? vec3(0.0,0.005,0.0) : ((uStage==3) ? vec3(0.8, 0.15, 0.0) : vec3(0.018,0.014,0.005));
+  col = mix(col, fogColor, fog);
+
+  if(uEntityDist > 0.0 && uEntityDist < 14.0){
+    float p = 1.0 - uEntityDist/14.0;
+    col = mix(col, vec3(0.6,0.0,0.0)*col, p*0.5);
+    col += vec3(0.05,0.0,0.0)*sin(uTime*15.0+vWorldPos.y*8.0)*p;
+  }
+
+  col += vec3(uPanicLevel*0.08, 0.0, 0.0)*sin(uTime*20.0+vWorldPos.x*3.0)*0.5;
+  fragColor = vec4(max(col,vec3(0.0)),1.0);
+}`;
+
+function compileShader(type, src){
+  const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+const UNI = {};
+['uMVP','uModel','uCamPos','uCamDir','uTime','uStage','uFlashlightPwr','uEntityDist','uBrightness','uPanicLevel','uObjType','uDoorPos']
+  .forEach(n=>UNI[n]=gl.getUniformLocation(prog,n));
+
+// ════════════════════════════════════════════════════════════════════
+//  GEOMETRIA
+// ════════════════════════════════════════════════════════════════════
+class Mesh {
+  constructor(){ this.pos=[]; this.norm=[]; this.vao=null; this.count=0; }
+  addQuad(p0,p1,p2,p3){
+    const u=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]], v=[p2[0]-p0[0],p2[1]-p0[1],p2[2]-p0[2]];
+    const n=[u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const nl=Math.sqrt(n[0]**2+n[1]**2+n[2]**2)||1;
+    const nx=n[0]/nl, ny=n[1]/nl, nz=n[2]/nl;
+    const pts=[p0,p1,p2,p3], idx=[0,1,2,0,2,3];
+    for(const i of idx){ this.pos.push(...pts[i]); this.norm.push(nx,ny,nz); }
+    this.count+=6;
+  }
+  addTriangle(p0,p1,p2){
+    const u=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]], v=[p2[0]-p0[0],p2[1]-p0[1],p2[2]-p0[2]];
+    const n=[u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const nl=Math.sqrt(n[0]**2+n[1]**2+n[2]**2)||1;
+    const nx=n[0]/nl, ny=n[1]/nl, nz=n[2]/nl;
+    const pts=[p0,p1,p2];
+    for(const p of pts){ this.pos.push(...p); this.norm.push(nx,ny,nz); }
+    this.count+=3;
+  }
+  addBox(x,y,z,w,h,d){
+    const x1=x+w, y1=y+h, z1=z+d;
+    this.addQuad([x,y,z1],[x1,y,z1],[x1,y1,z1],[x,y1,z1]);
+    this.addQuad([x1,y,z],[x,y,z],[x,y1,z],[x1,y1,z]);
+    this.addQuad([x,y,z],[x,y,z1],[x,y1,z1],[x,y1,z]);
+    this.addQuad([x1,y,z1],[x1,y,z],[x1,y1,z],[x1,y1,z1]);
+    this.addQuad([x,y1,z],[x1,y1,z],[x1,y1,z1],[x,y1,z1]);
+    this.addQuad([x1,y,z],[x,y,z],[x,y,z1],[x1,y,z1]);
+  }
+  addSlab(y, size=400){
+    const s=size/2;
+    if(y===0) this.addQuad([-s,y,s],[s,y,s],[s,y,-s],[-s,y,-s]);
+    else       this.addQuad([-s,y,-s],[s,y,-s],[s,y,s],[-s,y,s]);
+  }
+  upload(){
+    this.vao=gl.createVertexArray(); gl.bindVertexArray(this.vao);
+    const bPos=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bPos);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(this.pos),gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+    const bNorm=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bNorm);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(this.norm),gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,0,0);
+    gl.bindVertexArray(null);
+  }
+  draw(mvp, model=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])){
+    if(!this.vao) return;
+    gl.bindVertexArray(this.vao);
+    gl.uniformMatrix4fv(UNI.uMVP,false,mvp);
+    gl.uniformMatrix4fv(UNI.uModel,false,model);
+    gl.drawArrays(gl.TRIANGLES,0,this.count);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  COLISÃO E MAPAS
+// ════════════════════════════════════════════════════════════════════
+const colliders = [];
+function addAABB(x,y,z,w,h,d,stageId=0){ colliders.push({x,y,z,x2:x+w,y2:y+h,z2:z+d,stage:stageId}); }
+
+const NOCLIP_POS = {x:12, z:-18, r:2.2};
+const CEILING_H = 3.5;
+const forestMesh    = new Mesh();
+const backroomsMesh = new Mesh();
+const pillarMesh    = new Mesh();
+const entityMesh    = new Mesh();
+const doorMesh      = new Mesh();
+const pageMesh      = new Mesh();
+const arrowMesh     = new Mesh();
+
+let doorPos = { x: 9999, z: 9999 };
+let pagesData = []; 
+let arrowsData = []; 
+let pagesCollected = 0;
+const LORE_TEXTS = [
+  "A saída não é uma porta, é um erro de cálculo.",
+  "Ele ouve seus passos na água.",
+  "Siga a tinta amarela.",
+  "REC 01 falhou. REC 02 sumiu.",
+  "A fita está acabando..."
+];
+
+function buildForest(){
+  forestMesh.addSlab(0,400); forestMesh.addSlab(25,400);
+  forestMesh.addBox(-0.25,0,3, 0.5,18,0.5); addAABB(-0.3,0,2.9,0.6,18,0.6,0);
+  const rng = mulberry32(0xDEADBEEF);
+  for(let i=0;i<220;i++){
+    const a=rng()*Math.PI*2, r=4+rng()*75;
+    const cx=Math.cos(a)*r, cz=Math.sin(a)*r;
+    if(dist2D(cx,cz,0,5)<2.5||dist2D(cx,cz,NOCLIP_POS.x,NOCLIP_POS.z)<3) continue;
+    const w=0.25+rng()*0.45, h=10+rng()*10, d=0.25+rng()*0.45;
+    forestMesh.addBox(cx-w/2,0,cz-d/2,w,h,d); addAABB(cx-w/2,0,cz-d/2,w,h,d,0);
+    addAABB(cx-w/2,0,cz-d/2,w,h,d,3); 
+  }
+  forestMesh.upload();
+}
+
+function buildBackrooms(){
+  backroomsMesh.addSlab(0,400); backroomsMesh.addSlab(CEILING_H,400);
+  const rng=mulberry32(0xBAC40001); const SIZE=37; const CELL=3.0; const map=[];
+  let doorPlaced = false;
+
+  for(let i=0;i<SIZE;i++){ map[i]=[]; for(let j=0;j<SIZE;j++) map[i][j]=0; }
+  for(let i=0;i<SIZE;i++) for(let j=0;j<SIZE;j++) if(i===0||j===0||i===SIZE-1||j===SIZE-1) map[i][j]=1;
+  for(let i=2;i<SIZE-2;i+=2) for(let j=2;j<SIZE-2;j+=2){
+    map[i][j]=1;
+    let dirs=[[0,1],[1,0],[-1,0]]; if(i>2) dirs.push([0,-1]);
+    let d=dirs[Math.floor(rng()*dirs.length)]; map[i+d[0]][j+d[1]]=1;
+  }
+  for(let k=0;k<18;k++){
+    let rx=2+Math.floor(rng()*(SIZE-5)), rz=2+Math.floor(rng()*(SIZE-5));
+    for(let w=0;w<3;w++) for(let h=0;h<3;h++) map[rx+w][rz+h]=0;
+  }
+  const center=Math.floor(SIZE/2);
+  for(let w=-2;w<=2;w++) for(let h=-2;h<=2;h++) map[center+w][center+h]=0;
+  
+  for(let z=0;z<SIZE;z++) for(let x=0;x<SIZE;x++){
+    let wx=(x-center)*CELL, wz=(z-center)*CELL, bx=wx-CELL/2, bz=wz-CELL/2;
+    if(map[z][x]===1){
+      backroomsMesh.addBox(bx,0,bz,CELL,CEILING_H,CELL);
+      addAABB(bx,0,bz,CELL,CEILING_H,CELL,1);
+    } else {
+      if(rng() < 0.12 && (Math.abs(x-center) > 2 || Math.abs(z-center) > 2)) {
+        if(!doorPlaced && rng() < 0.15) {
+          doorPos.x = bx + CELL/2;
+          doorPos.z = bz + CELL/2;
+          let pSize = 0.8;
+          pillarMesh.addBox(bx + CELL/2 - pSize/2, 0, bz + CELL/2 - pSize/2, pSize, CEILING_H, pSize);
+          addAABB(bx + CELL/2 - pSize/2, 0, bz + CELL/2 - pSize/2, pSize, CEILING_H, pSize, 1);
+          doorMesh.addBox(doorPos.x - 0.6, 0, doorPos.z + pSize/2, 1.2, 2.1, 0.2);
+          doorPlaced = true;
+        } else {
+          let pSize = 0.8;
+          pillarMesh.addBox(bx + CELL/2 - pSize/2, 0, bz + CELL/2 - pSize/2, pSize, CEILING_H, pSize);
+          addAABB(bx + CELL/2 - pSize/2, 0, bz + CELL/2 - pSize/2, pSize, CEILING_H, pSize, 1);
+        }
+      }
+      if(rng() < 0.05 && getRoomSeed(bx, bz) > 0.15 && LORE_TEXTS.length > pagesData.length) {
+        pagesData.push({ x: bx + CELL/2 + (rng()-0.5), z: bz + CELL/2 + (rng()-0.5), active: true, text: LORE_TEXTS[pagesData.length] });
+      }
+    }
+  }
+
+  if (doorPlaced) {
+    for(let z=0;z<SIZE;z++) for(let x=0;x<SIZE;x++){
+      if(map[z][x]===0){
+        let wx=(x-center)*CELL, wz=(z-center)*CELL, bx=wx-CELL/2, bz=wz-CELL/2;
+        let ax = bx + CELL/2;
+        let az = bz + CELL/2;
+        if (dist2D(ax, az, doorPos.x, doorPos.z) > 5.0 && rng() < 0.06) {
+           let dx = doorPos.x - ax;
+           let dz = doorPos.z - az;
+           let angle = Math.atan2(dx, dz);
+           arrowsData.push({x: ax, z: az, angle: angle});
+        }
+      }
+    }
+  }
+
+  pageMesh.addBox(-0.15, 0.01, -0.2, 0.3, 0.01, 0.4);
+  arrowMesh.addQuad([-0.05, 0.02, -0.4], [0.05, 0.02, -0.4], [0.05, 0.02, 0.1], [-0.05, 0.02, 0.1]);
+  arrowMesh.addTriangle([-0.25, 0.02, 0.1], [0.25, 0.02, 0.1], [0.0, 0.02, 0.5]);
+
+  backroomsMesh.upload();
+  pillarMesh.upload();
+  doorMesh.upload();
+  pageMesh.upload();
+  arrowMesh.upload();
+}
+
+function buildEntity3D() {
+  entityMesh.addBox(-0.35, 0, -0.35, 0.7, 2.9, 0.7);
+  entityMesh.upload();
+}
+
+const playerMesh = new Mesh();
+function buildPlayerMesh(){
+  playerMesh.addBox(-0.22, 0, -0.22, 0.44, 1.55, 0.44); // corpo
+  playerMesh.addBox(-0.16, 1.55, -0.16, 0.32, 0.32, 0.32); // cabeça
+  playerMesh.upload();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ÁUDIO PROCEDURAL
+// ════════════════════════════════════════════════════════════════════
+let audioCtx, masterGain, droneOsc, droneGain, noiseGain, tapeHiss, reverbGain;
+let doorFeedbackOsc, doorFeedbackGain;
+let footstepTimer = 0, breathTimer = 0, metalBangTimer = 0, whisperTimer = 0;
+
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  masterGain = audioCtx.createGain(); masterGain.gain.value=0; masterGain.connect(audioCtx.destination);
+
+  const revLen = audioCtx.sampleRate * 2.5;
+  const revBuf = audioCtx.createBuffer(2, revLen, audioCtx.sampleRate);
+  for(let ch=0;ch<2;ch++){ const d=revBuf.getChannelData(ch); for(let i=0;i<revLen;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/revLen,3.5); }
+  const convolver = audioCtx.createConvolver(); convolver.buffer=revBuf;
+  reverbGain = audioCtx.createGain(); reverbGain.gain.value=0.4;
+  convolver.connect(reverbGain); reverbGain.connect(masterGain);
+
+  droneOsc = audioCtx.createOscillator(); droneOsc.type='sawtooth'; droneOsc.frequency.value=49;
+  const droneFilter = audioCtx.createBiquadFilter(); droneFilter.type='lowpass'; droneFilter.frequency.value=180;
+  droneGain = audioCtx.createGain(); droneGain.gain.value=0.4;
+  droneOsc.connect(droneFilter); droneFilter.connect(droneGain); droneGain.connect(masterGain);
+  droneGain.connect(convolver); droneOsc.start();
+
+  doorFeedbackOsc = audioCtx.createOscillator(); doorFeedbackOsc.type='sine'; doorFeedbackOsc.frequency.value=400;
+  doorFeedbackGain = audioCtx.createGain(); doorFeedbackGain.gain.value=0;
+  doorFeedbackOsc.connect(doorFeedbackGain); doorFeedbackGain.connect(masterGain); doorFeedbackOsc.start();
+
+  const noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate*2, audioCtx.sampleRate);
+  const out = noiseBuf.getChannelData(0);
+  for(let i=0;i<out.length;i++) out[i]=(Math.random()*2-1)*0.03;
+  tapeHiss = audioCtx.createBufferSource(); tapeHiss.buffer=noiseBuf; tapeHiss.loop=true;
+  noiseGain = audioCtx.createGain(); noiseGain.gain.value=0.3;
+  tapeHiss.connect(noiseGain); noiseGain.connect(masterGain); tapeHiss.start();
+}
+
+function setVolume(v, t=0.5){ if(masterGain) masterGain.gain.linearRampToValueAtTime(v*masterVolume, audioCtx.currentTime+t); }
+
+function playFootstepGrass(){
+  if(!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.12, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){
+    const env = Math.exp(-i/(audioCtx.sampleRate*0.04));
+    d[i] = (Math.random()*2-1)*env*0.6;
+    d[i] += Math.sin(i*0.08)*env*0.2;
+  }
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=800+Math.random()*400; filt.Q.value=0.8;
+  const g = audioCtx.createGain(); g.gain.value = 0.35 + Math.random()*0.1;
+  src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+}
+
+function playFootstepCarpet(){
+  if(!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.08, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){
+    const env = Math.exp(-i/(audioCtx.sampleRate*0.025));
+    d[i] = (Math.random()*2-1)*env*0.4;
+    d[i] += Math.sin(i*0.03)*env*0.15;
+  }
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=300+Math.random()*200;
+  const g = audioCtx.createGain(); g.gain.value = 0.28+Math.random()*0.08;
+  src.connect(filt); filt.connect(g); g.connect(masterGain);
+  if(reverbGain){ const g2=audioCtx.createGain(); g2.gain.value=0.5; src.connect(filt); filt.connect(g2); g2.connect(reverbGain.destination||masterGain); }
+  src.start();
+}
+
+function playSplash() {
+  if(!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.3, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.exp(-i/(audioCtx.sampleRate*0.08));
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=1200;
+  const g = audioCtx.createGain(); g.gain.value = 0.6;
+  src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+}
+
+function playMetalBang() {
+  if(!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.5, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.exp(-i/(audioCtx.sampleRate*0.05)) * Math.sin(i*0.5);
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=400; filt.Q.value=5;
+  const g = audioCtx.createGain(); g.gain.value = 0.8;
+  src.connect(filt); filt.connect(g); g.connect(reverbGain || masterGain); src.start();
+}
+
+function playWhisper() {
+  if(!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*1.5, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) {
+     let env = Math.sin((i/d.length)*Math.PI);
+     d[i] = (Math.random()*2-1) * env * 0.3;
+  }
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=2000; filt.Q.value=1;
+  const g = audioCtx.createGain(); g.gain.value = 0.5;
+  src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+}
+
+function playBreath(heavy=false){
+  if(!audioCtx) return;
+  const dur = heavy ? 0.6 : 0.35;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*dur, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){
+    const t2 = i/audioCtx.sampleRate;
+    const env = Math.sin(Math.PI*t2/dur);
+    d[i] = (Math.random()*2-1)*env*(heavy?0.5:0.25);
+    d[i] += Math.sin(t2*(heavy?220:180)*Math.PI*2)*env*(heavy?0.12:0.06);
+  }
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=heavy?350:280; filt.Q.value=1.5;
+  const g = audioCtx.createGain(); g.gain.value=heavy?0.7:0.35;
+  src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+}
+
+function playFallImpact(){
+  if(!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.8, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){
+    const env = Math.exp(-i/(audioCtx.sampleRate*0.15));
+    d[i] = (Math.random()*2-1)*env;
+    d[i] += Math.sin(i*0.15)*env*0.5;
+  }
+  const src = audioCtx.createBufferSource(); src.buffer=buf;
+  const filt = audioCtx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=200;
+  const g = audioCtx.createGain(); g.gain.value=1.5;
+  src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+}
+
+function playDeathSound(){
+  if(!audioCtx) return;
+  const osc = audioCtx.createOscillator(); osc.type='square'; osc.frequency.value=120;
+  const g = audioCtx.createGain(); g.gain.setValueAtTime(3.0, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(0, audioCtx.currentTime+1.0);
+  osc.connect(g); g.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime+1.0);
+}
+
+function playEntitySound(panic){
+  if(!audioCtx) return;
+  const freq = 40 + panic*80;
+  const osc = audioCtx.createOscillator(); osc.type='sawtooth'; osc.frequency.value=freq;
+  const g = audioCtx.createGain(); g.gain.setValueAtTime(0, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(panic*1.5, audioCtx.currentTime+0.1);
+  g.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.4);
+  osc.connect(g); g.connect(masterGain); osc.start(); osc.stop(audioCtx.currentTime+0.4);
+}
+
+function updateClock(){
+  const d=new Date(); let h=d.getHours(), m=d.getMinutes(), s=d.getSeconds();
+  let ampm=h>=12?'PM':'AM'; h=h%12; h=h?h:12;
+  $('clock').innerText=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')} ${ampm}`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  MATH 4x4
+// ════════════════════════════════════════════════════════════════════
+const M4 = {
+  id:()=>new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]),
+  mul:(a,b)=>{ const o=new Float32Array(16); for(let i=0;i<4;i++) for(let j=0;j<4;j++) o[j*4+i]=a[i]*b[j*4+0]+a[4+i]*b[j*4+1]+a[8+i]*b[j*4+2]+a[12+i]*b[j*4+3]; return o; },
+  persp:(fov,ar,near,far)=>{ const f=1/Math.tan(fov/2), nf=1/(near-far); return new Float32Array([f/ar,0,0,0,0,f,0,0,0,0,(far+near)*nf,-1,0,0,2*far*near*nf,0]); },
+  trans:(m,x,y,z)=>{ const o=new Float32Array(m); o[12]+=m[0]*x+m[4]*y+m[8]*z; o[13]+=m[1]*x+m[5]*y+m[9]*z; o[14]+=m[2]*x+m[6]*y+m[10]*z; return o; },
+  rotX:(r)=>{ const c=Math.cos(r),s=Math.sin(r); return new Float32Array([1,0,0,0,0,c,s,0,0,-s,c,0,0,0,0,1]); },
+  rotY:(r)=>{ const c=Math.cos(r),s=Math.sin(r); return new Float32Array([c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]); },
+  rotZ:(r)=>{ const c=Math.cos(r),s=Math.sin(r); return new Float32Array([c,s,0,0,-s,c,0,0,0,0,1,0,0,0,0,1]); },
+};
+
+// ════════════════════════════════════════════════════════════════════
+//  ESTADO DO JOGO
+// ════════════════════════════════════════════════════════════════════
+let stage=0, camX=0, camY=1.6, camZ=5;
+let rotX=0, rotY=0, tRotX=0, tRotY=0;
+let keys={}, running=false, stamina=100, flashlight=false, flashPower=0;
+let alive=true, totalTime=0, lastTime=0, bobPhase=0;
+let panicLevel=0;
+let distToDoor = 9999;
+let radarSweep = 0;
+
+let camRoll = 0, camShake = {x:0, y:0, r:0}, breathCooldown = 0;
+let fallPhase = 0, fallTimer = 0, fallRotVel = {x:0, y:0, z:0}, fallBlack = 0, forestWalkTime = 0, hotspotTime = 0; 
+const entity = { x:25, z:-25, speed:1.8, active:false, timer:9999 };
+
+function checkCol(nx, ny, nz){
+  if(ny < 0.0) return true;
+  if(stage===1 && ny + 0.35 > CEILING_H - 0.05) return true;
+  for(const c of colliders){
+    if(c.stage!==stage) continue;
+    if(nx+0.25>c.x&&nx-0.25<c.x2&&ny+0.35>c.y&&ny-0.15<c.y2&&nz+0.25>c.z&&nz-0.25<c.z2) return true;
+  }
+  return false;
+}
+
+function checkColEntity(nx, nz){
+  const half = 0.4;
+  for(const c of colliders){
+    if(c.stage !== stage) continue;
+    if(nx+half>c.x && nx-half<c.x2 && nz+half>c.z && nz-half<c.z2) return true;
+  }
+  return false;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  HUD RADAR MÓDULO P/B (Câmera antiga)
+// ════════════════════════════════════════════════════════════════════
+function updateRadar(dt) {
+  const rUI = $('radar-ui');
+  const rLbl = $('radar-label');
+  if (stage !== 1 || !gameStarted || fallPhase > 0) {
+      rUI.style.display = 'none';
+      rLbl.style.display = 'none';
+      return;
+  }
+  rUI.style.display = 'block';
+  rLbl.style.display = 'block';
+
+  const rcvs = $('radar-canvas');
+  const rctx = rcvs.getContext('2d');
+  const W = rcvs.width, H = rcvs.height, CX = W/2, CZ = H/2, SCALE = 4.5;
+
+  // Baixa taxa de quadros (simula processador lento da câmera velha)
+  if (Math.random() < 0.15) return; 
+
+  rctx.clearRect(0, 0, W, H);
+
+  // Intensidade da falha visual (baseada no pânico e randômica)
+  let glitchIntensity = panicLevel * 15;
+  if(Math.random() < 0.05) glitchIntensity += 10;
+  let jX = (Math.random() - 0.5) * glitchIntensity;
+  let jY = (Math.random() - 0.5) * glitchIntensity;
+
+  rctx.save();
+  rctx.translate(jX, jY);
+
+  // Falha Crítica se a entidade estiver muito perto
+  if (panicLevel > 0.5 && Math.random() < 0.4) {
+      rctx.fillStyle = '#ffffff';
+      rctx.font = '12px VCR';
+      rctx.textAlign = 'center';
+      rctx.fillText('ERR: SINAL PERDIDO', CX, CZ);
+      // Estática Pesada
+      for(let i=0; i<30; i++){
+          rctx.fillStyle = `rgba(255,255,255,${Math.random()*0.5})`;
+          rctx.fillRect(Math.random()*W, Math.random()*H, Math.random()*50, Math.random()*3);
+      }
+      rctx.restore();
+      return;
+  }
+
+  // Retículo / Mira da Câmera
+  rctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  rctx.lineWidth = 1;
+  rctx.beginPath(); rctx.moveTo(CX, 0); rctx.lineTo(CX, H); rctx.stroke();
+  rctx.beginPath(); rctx.moveTo(0, CZ); rctx.lineTo(W, CZ); rctx.stroke();
+  rctx.beginPath(); rctx.arc(CX, CZ, 30, 0, Math.PI*2); rctx.stroke();
+
+  rctx.save();
+  rctx.translate(CX, CZ);
+  rctx.rotate(rotY); // Gira com o jogador
+
+  // Paredes (Preto e branco sombrio)
+  rctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+  for (const c of colliders) {
+      if (c.stage !== stage) continue;
+      let cw = c.x2 - c.x, cd = c.z2 - c.z;
+      let cx = c.x + cw/2, cz = c.z + cd/2;
+      let relX = cx - camX, relZ = cz - camZ;
+      if (Math.abs(relX) > 18 || Math.abs(relZ) > 18) continue; // Culling de distância
+      rctx.fillRect((c.x - camX) * SCALE, (c.z - camZ) * SCALE, cw * SCALE, cd * SCALE);
+  }
+
+  // Páginas
+  rctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
+  for(let i=0; i<pagesData.length; i++) {
+    if(pagesData[i].active) {
+       let relX = pagesData[i].x - camX, relZ = pagesData[i].z - camZ;
+       rctx.fillRect(relX * SCALE - 1, relZ * SCALE - 1, 2, 2);
+    }
+  }
+
+  // Porta de Saída (Pisca em branco forte)
+  if (doorPos.x !== 9999) {
+      let dX = (doorPos.x - camX) * SCALE, dZ = (doorPos.z - camZ) * SCALE;
+      if (Math.random() > 0.2) {
+          rctx.fillStyle = '#ffffff';
+          rctx.fillRect(dX - 2, dZ - 2, 4, 4);
+      }
+  }
+
+  // A Entidade (Glitch branco bizarro e quadrado distorcido)
+  if (entity.active) {
+      let eX = (entity.x - camX) * SCALE, eZ = (entity.z - camZ) * SCALE;
+      if (Math.sqrt(eX*eX + eZ*eZ) < W) {
+          if (Math.floor(totalTime * 12) % 2 === 0) {
+              rctx.fillStyle = '#ffffff';
+              let eGlitch = Math.random() * 4;
+              rctx.fillRect(eX - 3 - eGlitch/2, eZ - 3, 6 + eGlitch, 6);
+              rctx.strokeStyle = 'rgba(255,255,255,0.6)';
+              rctx.strokeRect(eX - 6, eZ - 6, 12, 12);
+          }
+      }
+  }
+  
+  rctx.restore(); // Fim da Rotação
+
+  // Marcador do Jogador
+  rctx.fillStyle = '#ffffff';
+  rctx.beginPath(); rctx.moveTo(CX, CZ - 4); rctx.lineTo(CX - 3, CZ + 3); rctx.lineTo(CX + 3, CZ + 3); rctx.closePath(); rctx.fill();
+
+  // V-Sync Sweep (Linha horizontal descendo na tela)
+  radarSweep = (radarSweep + dt * 40) % H; 
+  rctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+  rctx.fillRect(0, radarSweep, W, 4);
+
+  // Estática Suave por cima de tudo
+  for(let i=0; i<15; i++){
+      rctx.fillStyle = `rgba(255,255,255,${Math.random()*0.15})`;
+      rctx.fillRect(Math.random()*W, Math.random()*H, Math.random()*20, 1);
+  }
+
+  rctx.restore(); // Fim do Jitter
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  INPUT E UPDATE
+// ════════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyF') flashlight=!flashlight;
+  
+  if(!gameStarted || !alive || fallPhase>0) return;
+  if(e.code==='Escape'){ if(paused) hidePause(); else showPause(); }
+});
+document.addEventListener('keyup', e=>{ keys[e.code]=false; });
+document.addEventListener('mousemove', e=>{
+  if(!gameStarted||!alive||paused||fallPhase>0) return;
+  tRotY -= e.movementX*mouseSens; 
+  tRotX -= e.movementY*mouseSens; 
+  tRotX = clamp(tRotX, -1.4, 1.4);
+});
+canvas.addEventListener('click', ()=>{ if(gameStarted&&alive&&!paused&&!isTouchDevice) canvas.requestPointerLock(); });
+
+// ════════════════════════════════════════════════════════════════════
+//  CONTROLES TOUCH (MOBILE)
+// ════════════════════════════════════════════════════════════════════
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+let joyActive=false, joyId=null, joyOriginX=0, joyOriginY=0, joyVecX=0, joyVecY=0;
+let lookActive=false, lookId=null, lookLastX=0, lookLastY=0;
+let touchRunHeld=false;
+
+function setupTouchControls(){
+  if(!isTouchDevice) return;
+  $('touch-controls').style.display='block';
+  document.body.style.cursor='auto';
+  canvas.style.cursor='auto';
+
+  const joyZone=$('joystick-zone'), joyBase=$('joystick-base'), joyStick=$('joystick-stick');
+  const JOY_R=55;
+
+  joyZone.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    if(joyActive) return;
+    const t=e.changedTouches[0];
+    joyActive=true; joyId=t.identifier;
+    joyOriginX=t.clientX; joyOriginY=t.clientY;
+    joyBase.style.display='block';
+    joyBase.style.left=(joyOriginX-50)+'px'; joyBase.style.top=(joyOriginY-50)+'px';
+    joyStick.style.left='28px'; joyStick.style.top='28px';
+  }, {passive:false});
+
+  joyZone.addEventListener('touchmove', e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      if(t.identifier!==joyId) continue;
+      let dx=t.clientX-joyOriginX, dy=t.clientY-joyOriginY;
+      const len=Math.sqrt(dx*dx+dy*dy);
+      if(len>JOY_R){ dx=dx/len*JOY_R; dy=dy/len*JOY_R; }
+      joyVecX=dx/JOY_R; joyVecY=dy/JOY_R;
+      joyStick.style.left=(28+dx)+'px'; joyStick.style.top=(28+dy)+'px';
+    }
+  }, {passive:false});
+
+  function joyEnd(e){
+    for(const t of e.changedTouches){
+      if(t.identifier!==joyId) continue;
+      joyActive=false; joyId=null; joyVecX=0; joyVecY=0;
+      joyBase.style.display='none';
+      keys['KeyW']=keys['KeyS']=keys['KeyA']=keys['KeyD']=false;
+    }
+  }
+  joyZone.addEventListener('touchend', joyEnd, {passive:false});
+  joyZone.addEventListener('touchcancel', joyEnd, {passive:false});
+
+  const lookZone=$('touch-look-zone');
+  lookZone.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    if(lookActive) return;
+    const t=e.changedTouches[0];
+    lookActive=true; lookId=t.identifier; lookLastX=t.clientX; lookLastY=t.clientY;
+  }, {passive:false});
+  lookZone.addEventListener('touchmove', e=>{
+    e.preventDefault();
+    if(!gameStarted||!alive||paused||fallPhase>0) return;
+    for(const t of e.changedTouches){
+      if(t.identifier!==lookId) continue;
+      const dx=t.clientX-lookLastX, dy=t.clientY-lookLastY;
+      lookLastX=t.clientX; lookLastY=t.clientY;
+      tRotY -= dx*mouseSens*2.2;
+      tRotX -= dy*mouseSens*2.2;
+      tRotX = clamp(tRotX,-1.4,1.4);
+    }
+  }, {passive:false});
+  function lookEnd(e){
+    for(const t of e.changedTouches){ if(t.identifier===lookId){ lookActive=false; lookId=null; } }
+  }
+  lookZone.addEventListener('touchend', lookEnd, {passive:false});
+  lookZone.addEventListener('touchcancel', lookEnd, {passive:false});
+
+  $('btn-flash-touch').addEventListener('touchstart', e=>{
+    e.preventDefault(); flashlight=!flashlight;
+    e.currentTarget.classList.toggle('active', flashlight);
+  }, {passive:false});
+
+  const runBtn=$('btn-run-touch');
+  runBtn.addEventListener('touchstart', e=>{ e.preventDefault(); touchRunHeld=true; runBtn.classList.add('active'); keys['ShiftLeft']=true; }, {passive:false});
+  runBtn.addEventListener('touchend', e=>{ e.preventDefault(); touchRunHeld=false; runBtn.classList.remove('active'); keys['ShiftLeft']=false; }, {passive:false});
+  runBtn.addEventListener('touchcancel', e=>{ touchRunHeld=false; runBtn.classList.remove('active'); keys['ShiftLeft']=false; }, {passive:false});
+
+  $('btn-pause-touch').addEventListener('touchstart', e=>{
+    e.preventDefault();
+    if(!gameStarted||!alive||fallPhase>0) return;
+    if(paused) hidePause(); else showPause();
+  }, {passive:false});
+}
+
+function updateTouchMovement(){
+  if(!isTouchDevice || !joyActive){ return; }
+  const dead=0.25;
+  keys['KeyW'] = joyVecY < -dead;
+  keys['KeyS'] = joyVecY >  dead;
+  keys['KeyA'] = joyVecX < -dead;
+  keys['KeyD'] = joyVecX >  dead;
+}
+
+setupTouchControls();
+
+// ════════════════════════════════════════════════════════════════════
+//  MULTIPLAYER (P2P via PeerJS)
+// ════════════════════════════════════════════════════════════════════
+let peer=null, isHost=false, myPeerId=null, myName='SOBREVIVENTE', myRoomCode=null;
+let conns={};            // id -> DataConnection
+let remotePlayers={};    // id -> {name,x,y,z,rotY,stage,flashlight,running,alive,lastSeen}
+let mpActive=false;
+let mpSendTimer=0;
+const MP_SEND_INTERVAL=0.08;
+const MP_MAX_PLAYERS=6;
+
+function genRoomCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s=''; for(let i=0;i<5;i++) s+=chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+function mpPeerIdFromRoom(code){ return 'backrooms-vhs-'+code; }
+
+function mpUpdatePlayersListUI(){
+  const names=[myName+' (você)'];
+  for(const id in remotePlayers) names.push(remotePlayers[id].name||'???');
+  $('mp-players-list').innerHTML = names.length+' JOGADOR(ES):<br>'+names.join(' · ');
+  $('mp-hud-info').textContent = 'SALA '+(myRoomCode||'')+' · '+names.length+' NA FITA';
+}
+
+function mpBroadcast(obj, exceptId=null){
+  const data=JSON.stringify(obj);
+  for(const id in conns){
+    if(id===exceptId) continue;
+    try{ conns[id].send(data); }catch(e){}
+  }
+}
+
+function mpSetupConnection(conn){
+  conns[conn.peer]=conn;
+  conn.on('data', raw=>{ mpHandleData(conn.peer, JSON.parse(raw)); });
+  conn.on('close', ()=>{ mpHandleLeave(conn.peer); });
+  conn.on('error', ()=>{ mpHandleLeave(conn.peer); });
+}
+
+function mpHandleLeave(id){
+  delete conns[id];
+  delete remotePlayers[id];
+  const tag=document.getElementById('tag-'+id); if(tag) tag.remove();
+  mpUpdatePlayersListUI();
+  if(gameStarted) showLog((remotePlayers[id]?remotePlayers[id].name:'JOGADOR')+' SAIU DA FITA', '#ff8888');
+  if(!isHost && Object.keys(conns).length===0 && mpActive && gameStarted){
+    showLog('CONEXÃO COM O HOST PERDIDA', '#ff3333');
+  }
+}
+
+function mpHandleData(fromId, msg){
+  if(msg.t==='state'){
+    if(!remotePlayers[fromId]) remotePlayers[fromId]={name:msg.name||'???'};
+    Object.assign(remotePlayers[fromId], msg, {lastSeen: totalTime});
+    mpUpdatePlayersListUI();
+    if(isHost) mpBroadcast(Object.assign({}, msg, {t:'state_relay', fromId}), fromId);
+  } else if(msg.t==='state_relay'){
+    if(!remotePlayers[msg.fromId]) remotePlayers[msg.fromId]={name:msg.name||'???'};
+    Object.assign(remotePlayers[msg.fromId], msg, {lastSeen: totalTime});
+  } else if(msg.t==='page'){
+    if(pagesData[msg.idx] && pagesData[msg.idx].active){
+      pagesData[msg.idx].active=false; pagesCollected++;
+      showLog(pagesData[msg.idx].text);
+    }
+    if(isHost) mpBroadcast(msg, fromId);
+  } else if(msg.t==='entity'){
+    if(!isHost){ entity.x=msg.x; entity.z=msg.z; entity.active=msg.active; }
+  } else if(msg.t==='name'){
+    if(!remotePlayers[fromId]) remotePlayers[fromId]={};
+    remotePlayers[fromId].name=msg.name;
+    mpUpdatePlayersListUI();
+    if(isHost) mpBroadcast({t:'name_relay', name:msg.name, fromId}, fromId);
+  } else if(msg.t==='name_relay'){
+    if(!remotePlayers[msg.fromId]) remotePlayers[msg.fromId]={};
+    remotePlayers[msg.fromId].name=msg.name;
+    mpUpdatePlayersListUI();
+  } else if(msg.t==='chat'){
+    showLog((msg.name||'???')+': '+msg.text, '#7fe3ff');
+    if(isHost) mpBroadcast(msg, fromId);
+  }
+}
+
+function mpCreateRoom(){
+  $('mp-menu-error').textContent='';
+  myName=($('mp-nick').value||'SOBREVIVENTE').trim().toUpperCase().slice(0,12) || 'SOBREVIVENTE';
+  myRoomCode=genRoomCode();
+  isHost=true; mpActive=true; conns={}; remotePlayers={};
+  peer = new Peer(mpPeerIdFromRoom(myRoomCode));
+  peer.on('open', id=>{
+    myPeerId=id;
+    $('mp-menu').style.display='none'; $('mp-status').style.display='flex';
+    $('mp-status-text').textContent='SALA CRIADA — COMPARTILHE O CÓDIGO:';
+    $('mp-status-code').textContent=myRoomCode;
+    $('btn-mp-start').style.display='inline-block';
+    mpUpdatePlayersListUI();
+  });
+  peer.on('connection', conn=>{
+    if(Object.keys(conns).length>=MP_MAX_PLAYERS-1){ conn.close(); return; }
+    conn.on('open', ()=>{
+      mpSetupConnection(conn);
+      conn.send(JSON.stringify({t:'name', name:myName, fromId:'host'}));
+      showLog('JOGADOR ENTROU NA SALA', '#7fe3ff');
+      mpUpdatePlayersListUI();
+    });
+  });
+  peer.on('error', err=>{
+    $('mp-menu-error').textContent='ERRO: '+(err.type||err.message||'FALHA NA REDE');
+    isHost=false; mpActive=false;
+  });
+}
+
+function mpJoinRoom(){
+  $('mp-menu-error').textContent='';
+  myName=($('mp-nick').value||'SOBREVIVENTE').trim().toUpperCase().slice(0,12) || 'SOBREVIVENTE';
+  const code=($('mp-code-input').value||'').trim().toUpperCase();
+  if(!code){ $('mp-menu-error').textContent='DIGITE O CÓDIGO DA SALA'; return; }
+  isHost=false; mpActive=true; conns={}; remotePlayers={};
+  peer = new Peer();
+  peer.on('open', id=>{
+    myPeerId=id;
+    const conn = peer.connect(mpPeerIdFromRoom(code), {reliable:true});
+    conn.on('open', ()=>{
+      mpSetupConnection(conn);
+      myRoomCode=code;
+      conn.send(JSON.stringify({t:'name', name:myName, fromId:myPeerId}));
+      $('mp-menu').style.display='none'; $('mp-status').style.display='flex';
+      $('mp-status-text').textContent='CONECTADO À SALA:';
+      $('mp-status-code').textContent=code;
+      $('btn-mp-start').style.display='inline-block';
+      mpUpdatePlayersListUI();
+    });
+    conn.on('error', ()=>{ $('mp-menu-error').textContent='NÃO FOI POSSÍVEL CONECTAR À SALA'; mpActive=false; });
+  });
+  peer.on('error', err=>{
+    $('mp-menu-error').textContent='ERRO: SALA NÃO ENCONTRADA OU OFFLINE';
+    isHost=false; mpActive=false;
+  });
+}
+
+function mpSendState(dt){
+  if(!mpActive || !gameStarted) return;
+  mpSendTimer -= dt;
+  if(mpSendTimer > 0) return;
+  mpSendTimer = MP_SEND_INTERVAL;
+  const state = {t:'state', name:myName, fromId:myPeerId, x:camX, y:camY, z:camZ, rotY:rotY, stage:stage, flashlight:flashlight, running:running, alive:alive};
+  if(isHost){
+    mpBroadcast(state);
+  } else {
+    for(const id in conns){ try{ conns[id].send(JSON.stringify(state)); }catch(e){} }
+  }
+}
+
+function mpSendPageCollected(idx){
+  if(!mpActive) return;
+  const msg={t:'page', idx};
+  if(isHost) mpBroadcast(msg); else for(const id in conns) conns[id].send(JSON.stringify(msg));
+}
+
+function mpBroadcastEntity(){
+  if(!mpActive || !isHost) return;
+  mpBroadcast({t:'entity', x:entity.x, z:entity.z, active:entity.active});
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  GLITCH, QUEDA (NOCLIP → BACKROOMS), ENTIDADE E MORTE
+// ════════════════════════════════════════════════════════════════════
+function triggerGlitch(duration = 150){
+  const strip = $('glitch-strip');
+  let elapsed = 0;
+  (function step(){
+    if(elapsed >= duration){ strip.style.display = 'none'; return; }
+    strip.style.display = 'block';
+    strip.style.height = (4 + Math.random()*36) + 'px';
+    strip.style.top = (Math.random()*100) + 'vh';
+    strip.style.transform = `translateX(${(Math.random()-0.5)*50}px)`;
+    const stepDur = 30 + Math.random()*70;
+    elapsed += stepDur;
+    setTimeout(step, stepDur);
+  })();
+
+  if(noiseGain && audioCtx){
+    const base = 0.3;
+    noiseGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    noiseGain.gain.setTargetAtTime(base*3.5, audioCtx.currentTime, 0.01);
+    noiseGain.gain.setTargetAtTime(base, audioCtx.currentTime + Math.min(duration,300)/1000, 0.15);
+  }
+}
+
+const FALL_SPIN_END   = 1.1;
+const FALL_LIMBO_END  = 2.6;
+const FALL_ARRIVE_END = 3.4;
+const FALL_MESSAGES = ["SINAL PERDIDO...", "REALINHANDO RASTREIO...", "ERRO DE TRACKING", "...ONDE ISSO LEVA?"];
+
+function startFall(){
+  if(fallPhase > 0) return;
+  fallPhase = 1;
+  fallTimer = 0;
+  fallBlack = 0;
+  fallRotVel.x = (Math.random()-0.5)*3.2;
+  fallRotVel.y = (Math.random()-0.5)*3.2;
+  fallRotVel.z = (Math.random()-0.5)*4.5;
+
+  document.exitPointerLock();
+  const ov = $('fall-overlay'); ov.style.display = 'block'; ov.style.opacity = '0';
+  const ft = $('fall-text'); ft.style.display = 'flex'; ft.innerHTML = '';
+
+  triggerGlitch(900);
+  playFallImpact();
+  if(droneOsc) droneOsc.frequency.setTargetAtTime(26, audioCtx.currentTime, 0.5);
+
+  let msgIndex = 0;
+  const msgInterval = setInterval(()=>{
+    if(msgIndex >= FALL_MESSAGES.length){ clearInterval(msgInterval); return; }
+    const span = document.createElement('span');
+    span.textContent = FALL_MESSAGES[msgIndex++];
+    ft.appendChild(span);
+  }, 550);
+}
+
+function updateFall(dt){
+  fallTimer += dt;
+
+  if(fallTimer < FALL_SPIN_END){
+    fallBlack = clamp(fallTimer/FALL_SPIN_END, 0, 1);
+    camRoll += fallRotVel.z*dt;
+    rotX += fallRotVel.x*dt; tRotX = rotX;
+    rotY += fallRotVel.y*dt; tRotY = rotY;
+    camShake.x = (Math.random()-0.5)*0.025;
+    camShake.y = (Math.random()-0.5)*0.025;
+  } else if(fallTimer < FALL_LIMBO_END){
+    fallBlack = 1;
+    camShake.x *= 0.9; camShake.y *= 0.9; camRoll *= 0.9;
+  } else if(fallTimer < FALL_ARRIVE_END){
+    if(stage !== 1){
+      stage = 1;
+      camX = 0; camZ = 0; camY = 1.6;
+      camRoll = 0; rotX = 0; tRotX = 0;
+      rotY = Math.random()*Math.PI*2; tRotY = rotY;
+      camShake.x = 0; camShake.y = 0; camShake.r = 0;
+      $('stage-info').innerText = 'LOC: DESCONHECIDO';
+      $('fall-text').style.display = 'none';
+      $('fall-text').innerHTML = '';
+      playFallImpact();
+      triggerGlitch(500);
+      if(droneOsc) droneOsc.frequency.setTargetAtTime(49, audioCtx.currentTime, 1.2);
+      entity.active = false;
+      entity.timer = 25 + Math.random()*35;
+    }
+    fallBlack = clamp(1 - (fallTimer-FALL_LIMBO_END)/(FALL_ARRIVE_END-FALL_LIMBO_END), 0, 1);
+  } else {
+    fallBlack = 0;
+    fallPhase = 0;
+    $('fall-overlay').style.display = 'none';
+    if(alive && gameStarted && !paused && !isTouchDevice) canvas.requestPointerLock();
+  }
+
+  $('fall-overlay').style.opacity = String(fallBlack);
+}
+
+let mpEntityBroadcastTimer = 0;
+
+function getNearestPlayerTarget(){
+  let tx=camX, tz=camZ, best=Infinity, isMe=true;
+  if(mpActive){
+    const dSelf = dist2D(camX,camZ,entity.x,entity.z);
+    best = dSelf;
+    for(const id in remotePlayers){
+      const rp=remotePlayers[id];
+      if(rp.stage!==1 || rp.alive===false || rp.x===undefined) continue;
+      const d = dist2D(rp.x, rp.z, entity.x, entity.z);
+      if(d<best){ best=d; tx=rp.x; tz=rp.z; isMe=false; }
+    }
+  }
+  return {tx,tz,isMe};
+}
+
+function updateEntity(dt){
+  if(!entity.active){
+    entity.timer -= dt;
+    if(entity.timer <= 0){
+      entity.active = true;
+      const ang = Math.random()*Math.PI*2;
+      const rad = 16 + Math.random()*10;
+      entity.x = camX + Math.sin(ang)*rad;
+      entity.z = camZ + Math.cos(ang)*rad;
+      playEntitySound(0.6);
+      if(droneOsc) droneOsc.frequency.setTargetAtTime(36, audioCtx.currentTime, 1.5);
+    }
+    panicLevel *= 0.95;
+    mpEntityBroadcastTimer -= dt;
+    if(mpEntityBroadcastTimer<=0){ mpEntityBroadcastTimer=0.15; mpBroadcastEntity(); }
+    return;
+  }
+
+  const target = getNearestPlayerTarget();
+  const d = dist2D(camX, camZ, entity.x, entity.z);
+  const dTarget = dist2D(target.tx, target.tz, entity.x, entity.z);
+
+  const toX = target.tx - entity.x, toZ = target.tz - entity.z;
+  const len = Math.max(0.001, Math.sqrt(toX*toX + toZ*toZ));
+  const baseX = toX/len, baseZ = toZ/len;
+
+  const wobble = Math.sin(totalTime*0.7 + entity.x*0.5)*0.35;
+  let dirX = baseX + (-baseZ)*wobble;
+  let dirZ = baseZ + (baseX)*wobble;
+  const dl = Math.sqrt(dirX*dirX + dirZ*dirZ) || 1;
+  dirX /= dl; dirZ /= dl;
+
+  const spd = entity.speed * (0.75 + clamp(1 - dTarget/20, 0, 1)*0.7) * dt;
+  const nx = entity.x + dirX*spd, nz = entity.z + dirZ*spd;
+  if(!checkColEntity(nx, entity.z)) entity.x = nx;
+  if(!checkColEntity(entity.x, nz)) entity.z = nz;
+
+  panicLevel = clamp(1 - d/16, 0, 1);
+  if(droneOsc) droneOsc.frequency.setTargetAtTime(36 - panicLevel*10, audioCtx.currentTime, 1.0);
+
+  if(Math.random() < dt*0.5 && d < 22) playEntitySound(panicLevel);
+
+  if(d < 1.1) die();
+
+  mpEntityBroadcastTimer -= dt;
+  if(mpEntityBroadcastTimer<=0){ mpEntityBroadcastTimer=0.15; mpBroadcastEntity(); }
+}
+
+// Verificação de proximidade da entidade para clientes (não-host) em multiplayer,
+// já que a IA da entidade roda apenas no host e é sincronizada via rede.
+function updateEntityProximityClient(dt){
+  if(stage!==1 || !entity.active) return;
+  const d = dist2D(camX, camZ, entity.x, entity.z);
+  panicLevel = clamp(1 - d/16, 0, 1);
+  if(d < 1.1) die();
+}
+
+function die(){
+  if(!alive) return;
+  alive = false;
+  if(mpActive){
+    const msg={t:'state', name:myName, fromId:myPeerId, x:camX, y:camY, z:camZ, rotY:rotY, stage:stage, flashlight:flashlight, running:false, alive:false};
+    if(isHost) mpBroadcast(msg); else for(const id in conns){ try{ conns[id].send(JSON.stringify(msg)); }catch(e){} }
+    showLog('VOCÊ FOI PEGO...', '#ff3333');
+  }
+  document.exitPointerLock();
+  playDeathSound();
+  if(masterGain) masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.3);
+  $('death-static').style.display = 'block';
+  $('death-text').style.display = 'flex';
+  setTimeout(()=>{ location.reload(); }, 3200);
+}
+
+function update(dt){
+  if(!alive||!gameStarted) return;
+  totalTime += dt;
+  updateTouchMovement();
+
+  if(Math.random() < dt * 0.015) triggerGlitch(100+Math.random()*400);
+
+  if(fallPhase > 0){ updateFall(dt); return; }
+
+  distToDoor = (stage === 1) ? dist2D(camX, camZ, doorPos.x, doorPos.z) : 9999;
+
+  if (stage === 1 && distToDoor < 1.5) {
+      stage = 3; 
+      camX = 0; camZ = 5; camY = 1.6;
+      $('stage-info').innerText = "LOC: ZONA DE CALOR";
+      $('rec-indicator').innerHTML = '<span id="rec-dot">●</span> REC';
+      triggerGlitch(1200);
+      entity.active = false; 
+      if(doorFeedbackGain) doorFeedbackGain.gain.value = 0;
+      if(droneOsc) droneOsc.frequency.value = 60; 
+  }
+
+  if (stage === 1) {
+    for(let i=0; i<pagesData.length; i++){
+      let p = pagesData[i];
+      if(p.active && dist2D(camX, camZ, p.x, p.z) < 1.2) {
+        p.active = false;
+        pagesCollected++;
+        showLog(p.text);
+        triggerGlitch(200);
+        mpSendPageCollected(i);
+      }
+    }
+  }
+
+  rotX += (tRotX-rotX)*18*dt;
+  rotY += (tRotY-rotY)*18*dt;
+
+  const mDX=Math.sin(rotY), mDZ=-Math.cos(rotY), mSX=Math.cos(rotY), mSZ=Math.sin(rotY);
+  const isM=keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD'];
+  running = isM && keys['ShiftLeft'] && stamina>0;
+
+  if (stage === 3) {
+      stamina -= (running ? 35 : 10) * dt; 
+      if (stamina <= 0) die();
+      panicLevel = 0.3 + Math.sin(totalTime * 15) * 0.15;
+      if(noiseGain) noiseGain.gain.value = 0.7 + Math.random()*0.2; 
+  } else {
+      if(running) stamina=Math.max(0,stamina-28*dt); else stamina=Math.min(100,stamina+12*dt);
+  }
+
+  const bars=Math.ceil(stamina/5);
+  $('stamina-bar').textContent='STAMINA: '+'█'.repeat(bars)+'░'.repeat(20-bars);
+  $('stamina-bar').style.color = stamina<20?'#ff3333':stamina<50?'#ffaa00':'#fff';
+
+  if (stage === 1 && distToDoor < 15) {
+    $('rec-indicator').innerHTML = '<span id="rec-dot" style="animation-duration:0.2s">●</span> SINAL ENCONTRADO';
+    $('batt-indicator').innerText = 'BATT: ' + (Math.random()>0.5?'ERR0R':'#@$%!');
+    $('batt-indicator').style.color = '#ff0000';
+  } else {
+    $('rec-indicator').innerHTML = '<span id="rec-dot">●</span> REC';
+    const blocks=Math.ceil(stamina/25);
+    $('batt-indicator').textContent='BATT: '+'■'.repeat(blocks)+'□'.repeat(4-blocks);
+    $('batt-indicator').style.color=blocks===0?'#f00':'#fff';
+  }
+
+  if (stage === 1 && audioCtx) {
+    let droneVol = (distToDoor < 10) ? 0.0 : ((distToDoor < 25) ? (distToDoor-10)/15 * 0.4 : 0.4);
+    if (droneGain) droneGain.gain.value = droneVol;
+    
+    if (doorFeedbackOsc && doorFeedbackGain) {
+      if (distToDoor < 20) {
+        doorFeedbackOsc.frequency.value = 400 + (20 - distToDoor)*40;
+        doorFeedbackGain.gain.value = (1 - distToDoor/20)*0.15;
+      } else {
+        doorFeedbackGain.gain.value = 0;
+      }
+    }
+
+    whisperTimer -= dt;
+    if (distToDoor < 15 && whisperTimer <= 0) {
+      whisperTimer = 1.0 + (distToDoor/15)*2.0; 
+      if(Math.random() < 0.6) playWhisper();
+    }
+
+    metalBangTimer -= dt;
+    if (distToDoor < 25 && metalBangTimer <= 0) {
+      metalBangTimer = 0.5 + (distToDoor/25)*3.0; 
+      if(Math.random() < 0.7) playMetalBang();
+    }
+  }
+
+  const spd = (running?5.8:3.2)*dt;
+  let mx=0, mz=0;
+  if(keys['KeyW']){ mx+=mDX; mz+=mDZ; } if(keys['KeyS']){ mx-=mDX; mz-=mDZ; }
+  if(keys['KeyA']){ mx-=mSX; mz-=mSZ; } if(keys['KeyD']){ mx+=mSX; mz+=mSZ; }
+  if(mx!==0||mz!==0){ let l=Math.sqrt(mx*mx+mz*mz); mx/=l; mz/=l; }
+  const nx=camX+mx*spd, nz=camZ+mz*spd;
+  
+  if(!checkCol(nx,camY,camZ)) camX=nx;
+  if(!checkCol(camX,camY,nz)) camZ=nz;
+  camY=1.6;
+
+  const chromatic = $('chromatic');
+  if(stage === 1 && distToDoor < 20) {
+    let dirX = doorPos.x - camX, dirZ = doorPos.z - camZ;
+    let len = Math.sqrt(dirX*dirX + dirZ*dirZ);
+    let dot = (mDX * (dirX/len)) + (mDZ * (dirZ/len));
+    let dirOpacity = Math.max(0, dot) * (1 - distToDoor/20);
+    chromatic.style.opacity = String(dirOpacity + panicLevel*0.5);
+    chromatic.style.background=`linear-gradient(90deg, rgba(255,0,0,0.06),rgba(0,255,200,0.04))`;
+  } else if (panicLevel > 0) {
+    chromatic.style.opacity = String(panicLevel*0.5);
+    chromatic.style.background=`linear-gradient(90deg, rgba(255,0,0,0.06),rgba(0,255,200,0.04))`;
+  } else {
+    chromatic.style.opacity='0';
+  }
+
+  if(stage === 0 && isM) {
+    forestWalkTime += dt;
+
+    const distNoclip = dist2D(camX, camZ, NOCLIP_POS.x, NOCLIP_POS.z);
+    if (distNoclip < NOCLIP_POS.r) {
+      hotspotTime += dt;
+      if (hotspotTime > 1.2) { startFall(); return; }
+    } else {
+      hotspotTime = 0;
+      if (distNoclip < 10 && audioCtx) {
+        whisperTimer -= dt;
+        if (whisperTimer <= 0) {
+          whisperTimer = 1.5 + Math.random()*2.5;
+          if (Math.random() < 0.7) playWhisper();
+        }
+      }
+    }
+
+    if (forestWalkTime > 12.0) {
+      const noclipChance = (forestWalkTime - 12.0) * 0.01;
+      if (Math.random() < noclipChance * dt) {
+        startFall();
+        return;
+      }
+    }
+  }
+
+  if(isM){
+    const bobSpeed = running ? 20 : 10;
+    const bobAmp   = running ? 0.055 : 0.032;
+    bobPhase += bobSpeed*dt;
+    camY += Math.sin(bobPhase)*bobAmp;
+
+    if(running){
+      camShake.x = (Math.random()-0.5)*0.008;
+      camShake.y = (Math.random()-0.5)*0.006;
+      camShake.r = (Math.random()-0.5)*0.004;
+    } else {
+      camShake.x *= 0.85; camShake.y *= 0.85; camShake.r *= 0.85;
+    }
+
+    const stepInterval = running ? 0.32 : 0.55;
+    footstepTimer -= dt;
+    if(footstepTimer <= 0){
+      footstepTimer = stepInterval + (Math.random()-0.5)*0.08;
+      if(stage===0 || stage===3) playFootstepGrass();
+      else {
+        let roomSeed = getRoomSeed(camX, camZ);
+        if (roomSeed < 0.15) playSplash();
+        else playFootstepCarpet();
+      }
+    }
+  } else {
+    camShake.x *= 0.8; camShake.y *= 0.8; camShake.r *= 0.8;
+    footstepTimer = 0;
+  }
+
+  breathCooldown -= dt;
+  if(running && stamina < 60){
+    const breathInterval = lerp(0.5, 1.2, stamina/60);
+    breathTimer -= dt;
+    if(breathTimer <= 0){ breathTimer=breathInterval; playBreath(stamina<30); }
+  } else if(!running && stamina < 50){
+    breathTimer -= dt;
+    if(breathTimer <= 0){ breathTimer=0.8; playBreath(stamina<20); }
+  }
+
+  flashPower += ((flashlight?(running?1.4:1.0):0)-flashPower)*10*dt;
+  if(stage===1){
+    if(isHost || !mpActive) updateEntity(dt);
+    else updateEntityProximityClient(dt);
+  }
+
+  mpSendState(dt);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════════════════
+const IDENTITY = M4.id();
+
+function drawRemotePlayers(mvp){
+  if(!mpActive) return;
+  gl.uniform1i(UNI.uObjType, 6);
+  const now = totalTime;
+  for(const id in remotePlayers){
+    const rp = remotePlayers[id];
+    if(rp.stage !== stage) continue;
+    if(rp.alive === false) continue;
+    if(rp.x === undefined) continue;
+    if(now - (rp.lastSeen||0) > 4) continue; // sem atualização recente, provavelmente desconectado
+    let pModel = M4.trans(IDENTITY, rp.x, 0, rp.z);
+    pModel = M4.mul(pModel, M4.rotY(rp.rotY||0));
+    playerMesh.draw(mvp, pModel);
+  }
+}
+
+function projectToScreen(mvp, x, y, z){
+  const w4 = mvp[3]*x + mvp[7]*y + mvp[11]*z + mvp[15];
+  const cx = mvp[0]*x + mvp[4]*y + mvp[8]*z  + mvp[12];
+  const cy = mvp[1]*x + mvp[5]*y + mvp[9]*z  + mvp[13];
+  if(w4 <= 0.05) return null;
+  const ndcX = cx / w4, ndcY = cy / w4;
+  const sx = (ndcX*0.5+0.5) * canvas.clientWidth;
+  const sy = (1-(ndcY*0.5+0.5)) * canvas.clientHeight;
+  return {x:sx, y:sy};
+}
+
+const playerTagEls = {};
+function updatePlayerTags(mvp){
+  const container = $('player-tags');
+  const seen = {};
+  if(mpActive){
+    for(const id in remotePlayers){
+      const rp = remotePlayers[id];
+      if(rp.stage !== stage || rp.alive === false || rp.x === undefined) continue;
+      if(totalTime - (rp.lastSeen||0) > 4) continue;
+      const pt = projectToScreen(mvp, rp.x, 2.05, rp.z);
+      let el = playerTagEls[id];
+      if(!el){ el=document.createElement('div'); el.className='player-tag'; container.appendChild(el); playerTagEls[id]=el; }
+      if(!pt || pt.x<0 || pt.x>canvas.clientWidth || pt.y<0 || pt.y>canvas.clientHeight){
+        el.style.display='none';
+      } else {
+        const d = dist2D(camX, camZ, rp.x, rp.z);
+        el.style.display = d < 30 ? 'block' : 'none';
+        el.style.left = pt.x+'px'; el.style.top = pt.y+'px';
+        el.textContent = rp.name || '???';
+      }
+      seen[id]=true;
+    }
+  }
+  for(const id in playerTagEls){
+    if(!seen[id]){ playerTagEls[id].remove(); delete playerTagEls[id]; }
+  }
+}
+
+function render(ts){
+  requestAnimationFrame(render);
+  const now=ts*0.001;
+  const dt=Math.min(now-lastTime, 0.05); lastTime=now;
+  if(!paused) update(dt);
+  
+  updateRadar(dt); // <--- ATUALIZA E DESENHA O RADAR DA CÂMERA AQUI
+
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  if(!gameStarted) return;
+
+  const finalRX = rotX + camShake.x;
+  const finalRY = rotY + camShake.y;
+  const finalRZ = camRoll + camShake.r;
+
+  let rot;
+  if(Math.abs(finalRZ) > 0.001){
+    rot = M4.mul(M4.rotZ(finalRZ), M4.mul(M4.rotX(finalRX), M4.rotY(finalRY)));
+  } else {
+    rot = M4.mul(M4.rotX(finalRX), M4.rotY(finalRY));
+  }
+
+  const view = M4.mul(rot, M4.trans(M4.id(), -camX, -camY, -camZ));
+  const proj = M4.persp(72*Math.PI/180, canvas.width/canvas.height, 0.08, 55);
+  const mvp  = M4.mul(proj, view);
+
+  const dX=-rot[2], dY=-rot[6], dZ=-rot[10];
+  const eDist=(stage===1&&entity.active)?dist2D(camX,camZ,entity.x,entity.z):-1;
+
+  gl.uniform3f(UNI.uCamPos, camX, camY, camZ);
+  gl.uniform3f(UNI.uCamDir, dX, dY, dZ);
+  gl.uniform1f(UNI.uTime, now);
+  gl.uniform1i(UNI.uStage, stage);
+  gl.uniform1f(UNI.uFlashlightPwr, flashPower);
+  gl.uniform1f(UNI.uEntityDist, eDist);
+  gl.uniform1f(UNI.uBrightness, globalBrightness);
+  gl.uniform1f(UNI.uPanicLevel, panicLevel);
+  gl.uniform2f(UNI.uDoorPos, doorPos.x, doorPos.z);
+
+  if(stage===1) {
+    gl.uniform1i(UNI.uObjType, 0);
+    gl.uniformMatrix4fv(UNI.uModel, false, IDENTITY);
+    backroomsMesh.draw(mvp);
+
+    gl.uniform1i(UNI.uObjType, 2);
+    pillarMesh.draw(mvp);
+
+    gl.uniform1i(UNI.uObjType, 3);
+    doorMesh.draw(mvp);
+
+    gl.uniform1i(UNI.uObjType, 4);
+    for(let i=0; i<pagesData.length; i++) {
+      if(pagesData[i].active) {
+        let pModel = M4.trans(IDENTITY, pagesData[i].x, 0, pagesData[i].z);
+        pageMesh.draw(mvp, pModel);
+      }
+    }
+
+    gl.uniform1i(UNI.uObjType, 5);
+    for(let i=0; i<arrowsData.length; i++) {
+      let a = arrowsData[i];
+      let aModel = M4.trans(IDENTITY, a.x, 0, a.z);
+      aModel = M4.mul(aModel, M4.rotY(a.angle));
+      arrowMesh.draw(mvp, aModel);
+    }
+
+    if (entity.active) {
+      gl.uniform1i(UNI.uObjType, 1);
+      const entModel = M4.trans(IDENTITY, entity.x, 0, entity.z);
+      entityMesh.draw(mvp, entModel);
+    }
+  } else {
+    gl.uniform1i(UNI.uObjType, 0);
+    gl.uniformMatrix4fv(UNI.uModel, false, IDENTITY);
+    forestMesh.draw(mvp);
+  }
+
+  drawRemotePlayers(mvp);
+  updatePlayerTags(mvp);
+
+  if(fallBlack > 0){
+    canvas.style.opacity = String(1 - fallBlack*0.95);
+  } else {
+    canvas.style.opacity='1';
+  }
+
+  const shakeAmt = Math.abs(camShake.x)+Math.abs(camShake.y);
+  const contrast = 1.3 + panicLevel*0.4 + shakeAmt*5;
+  const saturate = Math.max(0.1, 0.5 - panicLevel*0.3);
+  canvas.style.filter=`contrast(${contrast}) saturate(${saturate}) sepia(0.3) brightness(${0.88+panicLevel*0.05})`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════════════
+buildForest(); buildBackrooms(); buildEntity3D(); buildPlayerMesh(); requestAnimationFrame(render);
+</script>
+</body>
+</html>
