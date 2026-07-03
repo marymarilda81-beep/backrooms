@@ -88,6 +88,12 @@ input[type=range]::-webkit-slider-runnable-track { width:100%; height:3px; backg
 .mp-code { font-size:2.2rem; letter-spacing:0.5rem; color:#fff; text-shadow:2px 0 0 rgba(255,0,0,0.8),-2px 0 0 rgba(0,0,255,0.8); margin-bottom:14px; }
 .mp-players-list { font-size:0.95rem; color:rgba(255,255,255,0.55); letter-spacing:1px; margin-bottom:18px; text-align:center; max-width:320px; line-height:1.6; }
 .mp-error { color:#ff4444; font-size:0.9rem; letter-spacing:1px; margin-top:-6px; margin-bottom:10px; min-height:1.2em; }
+.menu-btn.selected { border-color:#fff; background:rgba(255,255,255,0.14); }
+
+/* ── TELA DE FIM DE JOGO ── */
+#end-screen { position:fixed; inset:0; background:#040407; z-index:300; display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; }
+#end-title { font-size:2.8rem; letter-spacing:0.15em; margin-bottom:1.2rem; text-shadow:3px 0 0 rgba(255,0,0,0.8),-3px 0 0 rgba(0,0,255,0.8); animation:flicker 4s infinite; }
+#end-msg { font-size:1.1rem; color:rgba(255,255,255,0.7); letter-spacing:2px; margin-bottom:2.5rem; max-width:520px; line-height:1.6; }
 
 /* ── NAMETAGS DE JOGADORES REMOTOS ── */
 #player-tags { position:fixed; inset:0; pointer-events:none; z-index:19; }
@@ -253,6 +259,12 @@ input[type=range]::-webkit-slider-runnable-track { width:100%; height:3px; backg
 <div id="fall-text"></div>
 <div id="glitch-strip"></div>
 
+<div id="end-screen">
+  <h1 id="end-title" class="menu-title">FIM DA FITA</h1>
+  <p id="end-msg"></p>
+  <button id="btn-end-menu" class="menu-btn">◀ VOLTAR AO MENU</button>
+</div>
+
 <canvas id="c"></canvas>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -306,6 +318,48 @@ function startLocalGame(){
   updateClock(); setInterval(updateClock, 1000);
 }
 
+function endGame(result){
+  gameStarted = false;
+  document.exitPointerLock();
+  $('death-static').style.display = 'none';
+  $('death-text').style.display = 'none';
+  $('hud').style.display = 'none';
+  $('touch-controls').style.display = 'none';
+
+  const info = {
+    escaped:       { title:'VOCÊ ESCAPOU', color:'#7fffb0', msg:'Você encontrou a saída e sobreviveu à fita. Páginas encontradas: '+pagesCollected+'/5.' },
+    caught:        { title:'FIM DA FITA', color:'#ff3333', msg:'A entidade te alcançou nos corredores intermináveis.' },
+    exhausted:     { title:'FIM DA FITA', color:'#ff3333', msg:'Você não aguentou o calor da Zona de Calor e desmaiou.' },
+    entity_win:    { title:'A ENTIDADE VENCEU', color:'#ff3333', msg: isEntityPlayer ? 'Você caçou todos os sobreviventes.' : 'Todos os sobreviventes foram pegos pela entidade.' },
+    survivors_win: { title:'SOBREVIVENTES ESCAPARAM', color:'#7fffb0', msg: isEntityPlayer ? 'Um sobrevivente encontrou a saída antes de você.' : 'Você escapou da entidade e encontrou a saída!' },
+  };
+  const r = info[result] || { title:'FIM DA FITA', color:'#fff', msg:'A gravação terminou.' };
+  $('end-title').textContent = r.title;
+  $('end-title').style.color = r.color;
+  $('end-msg').textContent = r.msg;
+  $('end-screen').style.display = 'flex';
+}
+
+function beginMultiplayerGame(mode, entityId){
+  gameMode = mode || 'coop';
+  isEntityPlayer = (mpActive && gameMode==='hunt' && entityId===myPeerId);
+  matchEnded = false;
+  startLocalGame();
+  if(mpActive && gameMode==='hunt'){
+    stage = 1;
+    entity.active = true; entity.timer = 9999;
+    if(isEntityPlayer){
+      entity.x = 25; entity.z = -25;
+      camX = entity.x; camY = 2.5; camZ = entity.z;
+      $('mp-hud-info').style.display='none';
+      showLog('VOCÊ É A ENTIDADE. CACE OS SOBREVIVENTES.', '#ff3333');
+    } else {
+      camX = 0; camY = 1.6; camZ = 0;
+      showLog('A CAÇADA COMEÇOU — FUJA E ENCONTRE A SAÍDA!', '#ff8888');
+    }
+  }
+}
+
 $('btn-multiplayer-main').addEventListener('click', ()=>{
   $('main-menu').style.display='none'; $('mp-menu').style.display='flex';
   $('mp-menu-error').textContent='';
@@ -322,7 +376,19 @@ $('btn-mp-cancel').addEventListener('click', ()=>{
 });
 $('btn-mp-create').addEventListener('click', ()=>{ mpCreateRoom(); });
 $('btn-mp-join').addEventListener('click', ()=>{ mpJoinRoom(); });
-$('btn-mp-start').addEventListener('click', ()=>{ startLocalGame(); });
+$('btn-mp-start').addEventListener('click', ()=>{
+  if(!isHost) return;
+  let entityId=null;
+  if(gameMode==='hunt'){
+    const candidates=[myPeerId, ...Object.keys(conns)];
+    entityId = candidates[Math.floor(Math.random()*candidates.length)];
+  }
+  mpBroadcast({t:'start', mode:gameMode, entityId});
+  beginMultiplayerGame(gameMode, entityId);
+});
+$('btn-mode-coop').addEventListener('click', ()=>{ if(isHost) setLocalMode('coop', true); });
+$('btn-mode-hunt').addEventListener('click', ()=>{ if(isHost) setLocalMode('hunt', true); });
+$('btn-end-menu').addEventListener('click', ()=>location.reload());
 $('btn-resume').addEventListener('click', hidePause);
 $('btn-settings-pause').addEventListener('click', ()=>{ $('pause-menu').style.display='none'; $('pause-settings').style.display='flex'; });
 $('btn-back-pause').addEventListener('click', ()=>{ $('pause-settings').style.display='none'; $('pause-menu').style.display='flex'; });
@@ -759,7 +825,18 @@ function buildBackrooms(){
 }
 
 function buildEntity3D() {
-  entityMesh.addBox(-0.35, 0, -0.35, 0.7, 2.9, 0.7);
+  // pernas finas
+  entityMesh.addBox(-0.22, 0, -0.10, 0.16, 1.05, 0.16);
+  entityMesh.addBox( 0.06, 0, -0.10, 0.16, 1.05, 0.16);
+  // torso alto e magro
+  entityMesh.addBox(-0.24, 1.0, -0.14, 0.48, 1.15, 0.28);
+  // pescoço
+  entityMesh.addBox(-0.10, 2.10, -0.10, 0.20, 0.18, 0.20);
+  // cabeça alongada, levemente inclinada para frente
+  entityMesh.addBox(-0.15, 2.24, -0.30, 0.30, 0.44, 0.30);
+  // braços longos e finos, quase arrastando no chão
+  entityMesh.addBox(-0.44, 0.45, -0.09, 0.15, 1.65, 0.15);
+  entityMesh.addBox( 0.29, 0.45, -0.09, 0.15, 1.65, 0.15);
   entityMesh.upload();
 }
 
@@ -959,7 +1036,7 @@ let radarSweep = 0;
 
 let camRoll = 0, camShake = {x:0, y:0, r:0}, breathCooldown = 0;
 let fallPhase = 0, fallTimer = 0, fallRotVel = {x:0, y:0, z:0}, fallBlack = 0, forestWalkTime = 0, hotspotTime = 0; 
-const entity = { x:25, z:-25, speed:1.8, active:false, timer:9999 };
+const entity = { x:25, z:-25, speed:2.3, active:false, timer:9999 };
 
 function checkCol(nx, ny, nz){
   if(ny < 0.0) return true;
@@ -986,7 +1063,7 @@ function checkColEntity(nx, nz){
 function updateRadar(dt) {
   const rUI = $('radar-ui');
   const rLbl = $('radar-label');
-  if (stage !== 1 || !gameStarted || fallPhase > 0) {
+  if (stage !== 1 || !gameStarted || fallPhase > 0 || isEntityPlayer) {
       rUI.style.display = 'none';
       rLbl.style.display = 'none';
       return;
@@ -1236,6 +1313,20 @@ let mpSendTimer=0;
 const MP_SEND_INTERVAL=0.08;
 const MP_MAX_PLAYERS=6;
 
+// ── MODO CAÇADA (um jogador vira a entidade) ──
+let gameMode='coop';        // 'coop' | 'hunt'
+let isEntityPlayer=false;   // true se EU sou a entidade nesta partida
+let matchEnded=false;
+
+function setLocalMode(mode, broadcast){
+  gameMode = mode;
+  $('btn-mode-coop').classList.toggle('selected', mode==='coop');
+  $('btn-mode-hunt').classList.toggle('selected', mode==='hunt');
+  $('mp-mode-preview').style.display='block';
+  $('mp-mode-preview').textContent = 'MODO: ' + (mode==='hunt' ? 'CAÇADA (1v1) — UM JOGADOR VIRA A ENTIDADE' : 'CO-OP');
+  if(broadcast && isHost) mpBroadcast({t:'mode', mode});
+}
+
 function genRoomCode(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s=''; for(let i=0;i<5;i++) s+=chars[Math.floor(Math.random()*chars.length)];
@@ -1292,7 +1383,18 @@ function mpHandleData(fromId, msg){
     }
     if(isHost) mpBroadcast(msg, fromId);
   } else if(msg.t==='entity'){
-    if(!isHost){ entity.x=msg.x; entity.z=msg.z; entity.active=msg.active; }
+    if(!isEntityPlayer){ entity.x=msg.x; entity.z=msg.z; entity.active=msg.active; }
+    if(isHost) mpBroadcast(msg, fromId);
+  } else if(msg.t==='mode'){
+    setLocalMode(msg.mode, false);
+  } else if(msg.t==='start'){
+    beginMultiplayerGame(msg.mode, msg.entityId);
+  } else if(msg.t==='kill'){
+    if(msg.targetId===myPeerId) die();
+    if(isHost) mpBroadcast(msg, fromId);
+  } else if(msg.t==='end'){
+    if(!matchEnded){ matchEnded=true; endGame(msg.result); }
+    if(isHost) mpBroadcast(msg, fromId);
   } else if(msg.t==='name'){
     if(!remotePlayers[fromId]) remotePlayers[fromId]={};
     remotePlayers[fromId].name=msg.name;
@@ -1320,6 +1422,9 @@ function mpCreateRoom(){
     $('mp-status-text').textContent='SALA CRIADA — COMPARTILHE O CÓDIGO:';
     $('mp-status-code').textContent=myRoomCode;
     $('btn-mp-start').style.display='inline-block';
+    $('mp-waiting-host').style.display='none';
+    $('mp-host-mode-select').style.display='block';
+    setLocalMode('coop', false);
     mpUpdatePlayersListUI();
   });
   peer.on('connection', conn=>{
@@ -1354,7 +1459,10 @@ function mpJoinRoom(){
       $('mp-menu').style.display='none'; $('mp-status').style.display='flex';
       $('mp-status-text').textContent='CONECTADO À SALA:';
       $('mp-status-code').textContent=code;
-      $('btn-mp-start').style.display='inline-block';
+      $('btn-mp-start').style.display='none';
+      $('mp-waiting-host').style.display='block';
+      $('mp-host-mode-select').style.display='none';
+      setLocalMode('coop', false);
       mpUpdatePlayersListUI();
     });
     conn.on('error', ()=>{ $('mp-menu-error').textContent='NÃO FOI POSSÍVEL CONECTAR À SALA'; mpActive=false; });
@@ -1385,8 +1493,25 @@ function mpSendPageCollected(idx){
 }
 
 function mpBroadcastEntity(){
-  if(!mpActive || !isHost) return;
-  mpBroadcast({t:'entity', x:entity.x, z:entity.z, active:entity.active});
+  if(!mpActive) return;
+  if(!(isHost || isEntityPlayer)) return;
+  const msg={t:'entity', x:entity.x, z:entity.z, active:entity.active};
+  if(isHost) mpBroadcast(msg);
+  else for(const id in conns){ try{ conns[id].send(JSON.stringify(msg)); }catch(e){} }
+}
+
+function mpSendKill(targetId){
+  if(!mpActive) return;
+  const msg={t:'kill', targetId};
+  if(isHost) mpBroadcast(msg);
+  else for(const id in conns){ try{ conns[id].send(JSON.stringify(msg)); }catch(e){} }
+}
+
+function mpSendEnd(result){
+  if(!mpActive) return;
+  const msg={t:'end', result};
+  if(isHost) mpBroadcast(msg);
+  else for(const id in conns){ try{ conns[id].send(JSON.stringify(msg)); }catch(e){} }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1472,7 +1597,7 @@ function updateFall(dt){
       triggerGlitch(500);
       if(droneOsc) droneOsc.frequency.setTargetAtTime(49, audioCtx.currentTime, 1.2);
       entity.active = false;
-      entity.timer = 25 + Math.random()*35;
+      entity.timer = 14 + Math.random()*22;
     }
     fallBlack = clamp(1 - (fallTimer-FALL_LIMBO_END)/(FALL_ARRIVE_END-FALL_LIMBO_END), 0, 1);
   } else {
@@ -1534,7 +1659,8 @@ function updateEntity(dt){
   const dl = Math.sqrt(dirX*dirX + dirZ*dirZ) || 1;
   dirX /= dl; dirZ /= dl;
 
-  const spd = entity.speed * (0.75 + clamp(1 - dTarget/20, 0, 1)*0.7) * dt;
+  const burst = dTarget < 6 ? 1.4 : (dTarget < 12 ? 1.15 : 1.0);
+  const spd = entity.speed * burst * (0.78 + clamp(1 - dTarget/20, 0, 1)*0.85) * dt;
   const nx = entity.x + dirX*spd, nz = entity.z + dirZ*spd;
   if(!checkColEntity(nx, entity.z)) entity.x = nx;
   if(!checkColEntity(entity.x, nz)) entity.z = nz;
@@ -1562,6 +1688,7 @@ function updateEntityProximityClient(dt){
 function die(){
   if(!alive) return;
   alive = false;
+  const reason = (stage===3) ? 'exhausted' : 'caught';
   if(mpActive){
     const msg={t:'state', name:myName, fromId:myPeerId, x:camX, y:camY, z:camZ, rotY:rotY, stage:stage, flashlight:flashlight, running:false, alive:false};
     if(isHost) mpBroadcast(msg); else for(const id in conns){ try{ conns[id].send(JSON.stringify(msg)); }catch(e){} }
@@ -1572,13 +1699,71 @@ function die(){
   if(masterGain) masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.3);
   $('death-static').style.display = 'block';
   $('death-text').style.display = 'flex';
-  setTimeout(()=>{ location.reload(); }, 3200);
+
+  if(mpActive && gameMode==='hunt' && !isEntityPlayer){
+    setTimeout(()=>{
+      $('death-static').style.display = 'none';
+      $('death-text').style.display = 'none';
+      showLog('AGUARDANDO O FIM DA CAÇADA...', '#ff8888');
+    }, 2400);
+  } else {
+    setTimeout(()=>{ endGame(reason); }, 2800);
+  }
+}
+
+function updateEntityPlayerControl(dt){
+  entity.active = true;
+  rotX += (tRotX-rotX)*18*dt;
+  rotY += (tRotY-rotY)*18*dt;
+  const mDX=Math.sin(rotY), mDZ=-Math.cos(rotY), mSX=Math.cos(rotY), mSZ=Math.sin(rotY);
+  let mx=0, mz=0;
+  if(keys['KeyW']){ mx+=mDX; mz+=mDZ; } if(keys['KeyS']){ mx-=mDX; mz-=mDZ; }
+  if(keys['KeyA']){ mx-=mSX; mz-=mSZ; } if(keys['KeyD']){ mx+=mSX; mz+=mSZ; }
+  const isM = mx!==0||mz!==0;
+  if(isM){ const l=Math.sqrt(mx*mx+mz*mz); mx/=l; mz/=l; }
+  const spd = 4.6*dt;
+  const nx=entity.x+mx*spd, nz=entity.z+mz*spd;
+  if(!checkColEntity(nx, entity.z)) entity.x=nx;
+  if(!checkColEntity(entity.x, nz)) entity.z=nz;
+
+  if(isM){ bobPhase += 12*dt; camY = 2.5 + Math.sin(bobPhase)*0.05; }
+  camX = entity.x; camZ = entity.z;
+
+  $('stage-info').innerText = 'VOCÊ É A ENTIDADE';
+  $('rec-indicator').innerHTML = '<span id="rec-dot" style="color:#ff2222">●</span> CAÇANDO';
+  $('batt-indicator').textContent='';
+  $('stamina-bar').textContent='';
+
+  if(Math.random() < dt*0.15) playEntitySound(0.5);
+
+  if(!matchEnded){
+    let aliveCount=0, total=0;
+    for(const id in remotePlayers){
+      const rp = remotePlayers[id];
+      total++;
+      if(rp.alive!==false) aliveCount++;
+      if(rp.alive!==false && rp.stage===1 && rp.x!==undefined){
+        const d = dist2D(entity.x, entity.z, rp.x, rp.z);
+        if(d < 1.3) mpSendKill(id);
+      }
+    }
+    if(total>0 && aliveCount===0){
+      matchEnded=true;
+      mpSendEnd('entity_win');
+      endGame('entity_win');
+    }
+  }
+
+  mpEntityBroadcastTimer -= dt;
+  if(mpEntityBroadcastTimer<=0){ mpEntityBroadcastTimer=0.08; mpBroadcastEntity(); }
 }
 
 function update(dt){
   if(!alive||!gameStarted) return;
   totalTime += dt;
   updateTouchMovement();
+
+  if(isEntityPlayer){ updateEntityPlayerControl(dt); mpSendState(dt); return; }
 
   if(Math.random() < dt * 0.015) triggerGlitch(100+Math.random()*400);
 
@@ -1587,7 +1772,16 @@ function update(dt){
   distToDoor = (stage === 1) ? dist2D(camX, camZ, doorPos.x, doorPos.z) : 9999;
 
   if (stage === 1 && distToDoor < 1.5) {
-      stage = 3; 
+    if(mpActive && gameMode==='hunt'){
+      if(alive){
+        alive = false;
+        matchEnded = true;
+        mpSendEnd('survivors_win');
+        endGame('survivors_win');
+      }
+      return;
+    }
+    stage = 3; 
       camX = 0; camZ = 5; camY = 1.6;
       $('stage-info').innerText = "LOC: ZONA DE CALOR";
       $('rec-indicator').innerHTML = '<span id="rec-dot">●</span> REC';
@@ -1595,6 +1789,23 @@ function update(dt){
       entity.active = false; 
       if(doorFeedbackGain) doorFeedbackGain.gain.value = 0;
       if(droneOsc) droneOsc.frequency.value = 60; 
+  }
+
+  if (stage === 3) {
+    const dEsc = dist2D(camX, camZ, 0, 5);
+    if (dEsc > 55) {
+      if(alive){
+        alive = false;
+        if(mpActive){
+          const msg={t:'state', name:myName, fromId:myPeerId, x:camX, y:camY, z:camZ, rotY:rotY, stage:stage, flashlight:flashlight, running:false, alive:true};
+          if(isHost) mpBroadcast(msg); else for(const id in conns){ try{ conns[id].send(JSON.stringify(msg)); }catch(e){} }
+        }
+        document.exitPointerLock();
+        triggerGlitch(600);
+        setTimeout(()=>{ endGame('escaped'); }, 900);
+      }
+      return;
+    }
   }
 
   if (stage === 1) {
@@ -1762,7 +1973,8 @@ function update(dt){
 
   flashPower += ((flashlight?(running?1.4:1.0):0)-flashPower)*10*dt;
   if(stage===1){
-    if(isHost || !mpActive) updateEntity(dt);
+    if(mpActive && gameMode==='hunt') updateEntityProximityClient(dt);
+    else if(isHost || !mpActive) updateEntity(dt);
     else updateEntityProximityClient(dt);
   }
 
