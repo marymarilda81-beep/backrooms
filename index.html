@@ -149,7 +149,17 @@ input[type=range]::-webkit-slider-runnable-track { width:100%; height:3px; backg
   <div class="mp-status-line" id="mp-status-text">CONECTANDO...</div>
   <div class="mp-code" id="mp-status-code"></div>
   <div class="mp-players-list" id="mp-players-list"></div>
-  <button id="btn-mp-start" class="menu-btn" style="display:none;">▶ REPRODUZIR FITA</button>
+
+  <div id="mp-host-mode-select" style="display:none; text-align:center; margin-bottom:10px;">
+    <div class="mp-status-line">MODO DE JOGO</div>
+    <button id="btn-mode-coop" class="menu-btn selected" style="font-size:1.1rem;">🎬 CO-OP</button>
+    <button id="btn-mode-hunt" class="menu-btn" style="font-size:1.1rem;">👹 CAÇADA (1v1)</button>
+  </div>
+  <div class="mp-status-line" id="mp-mode-preview" style="display:none;">MODO: CO-OP</div>
+  <div class="mp-error" id="mp-status-error"></div>
+
+  <button id="btn-mp-start" class="menu-btn" style="display:none;">▶ INICIAR PARTIDA</button>
+  <div class="mp-status-line" id="mp-waiting-host" style="display:none;">AGUARDANDO O HOST INICIAR A FITA...</div>
   <div class="menu-divider"></div>
   <button id="btn-mp-cancel" class="menu-btn danger">✕ CANCELAR</button>
 </div>
