@@ -349,7 +349,8 @@ function beginMultiplayerGame(mode, entityId){
     stage = 1;
     entity.active = true; entity.timer = 9999;
     if(isEntityPlayer){
-      entity.x = 25; entity.z = -25;
+      const sp = findFreeEntitySpawn(25, -25, 0, 8);
+      entity.x = sp.x; entity.z = sp.z;
       camX = entity.x; camY = 2.5; camZ = entity.z;
       $('mp-hud-info').style.display='none';
       showLog('VOCÊ É A ENTIDADE. CACE OS SOBREVIVENTES.', '#ff3333');
@@ -563,6 +564,8 @@ void main(){
     surfCol = vec3(0.28, 0.55, 0.75) * (0.8 + 0.2*fbm(vWorldPos.xz*6.0));
   } else if (uObjType == 5) {
     surfCol = vec3(0.9, 0.8, 0.1) * (0.8 + 0.2*fbm(vWorldPos.xz*10.0)); 
+  } else if (uObjType == 7) {
+    surfCol = vec3(1.0, 0.0, 0.0);
   } else {
     if(uStage == 0 || uStage == 2){
       if(absY < 0.1) surfCol = vec3(0.03,0.055,0.02)*fbm(vWorldPos.xz*2.0+1.5);
@@ -628,6 +631,10 @@ void main(){
   float fog = smoothstep(fogNear, fogFar, dist);
   vec3 fogColor = (uStage==0 || uStage==2) ? vec3(0.0,0.005,0.0) : ((uStage==3) ? vec3(0.8, 0.15, 0.0) : vec3(0.018,0.014,0.005));
   col = mix(col, fogColor, fog);
+
+  if(uObjType == 7){
+    col = vec3(1.0, 0.03, 0.03) * (1.7 + 0.5*sin(uTime*4.5));
+  }
 
   if(uEntityDist > 0.0 && uEntityDist < 14.0){
     float p = 1.0 - uEntityDist/14.0;
@@ -720,6 +727,7 @@ const forestMesh    = new Mesh();
 const backroomsMesh = new Mesh();
 const pillarMesh    = new Mesh();
 const entityMesh    = new Mesh();
+const entityEyesMesh = new Mesh();
 const doorMesh      = new Mesh();
 const pageMesh      = new Mesh();
 const arrowMesh     = new Mesh();
@@ -838,6 +846,11 @@ function buildEntity3D() {
   entityMesh.addBox(-0.44, 0.45, -0.09, 0.15, 1.65, 0.15);
   entityMesh.addBox( 0.29, 0.45, -0.09, 0.15, 1.65, 0.15);
   entityMesh.upload();
+
+  // olhos vermelhos brilhantes, sempre visíveis mesmo no escuro
+  entityEyesMesh.addBox(-0.11, 2.42, -0.31, 0.055, 0.06, 0.03);
+  entityEyesMesh.addBox( 0.055, 2.42, -0.31, 0.055, 0.06, 0.03);
+  entityEyesMesh.upload();
 }
 
 const playerMesh = new Mesh();
@@ -1055,6 +1068,17 @@ function checkColEntity(nx, nz){
     if(nx+half>c.x && nx-half<c.x2 && nz+half>c.z && nz-half<c.z2) return true;
   }
   return false;
+}
+
+function findFreeEntitySpawn(cx, cz, minR, maxR, maxTries=48){
+  for(let i=0;i<maxTries;i++){
+    const ang = Math.random()*Math.PI*2;
+    const rad = minR + Math.random()*(maxR-minR);
+    const x = cx + Math.sin(ang)*rad;
+    const z = cz + Math.cos(ang)*rad;
+    if(!checkColEntity(x, z)) return {x, z};
+  }
+  return {x:cx, z:cz};
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1634,8 +1658,9 @@ function updateEntity(dt){
       entity.active = true;
       const ang = Math.random()*Math.PI*2;
       const rad = 16 + Math.random()*10;
-      entity.x = camX + Math.sin(ang)*rad;
-      entity.z = camZ + Math.cos(ang)*rad;
+      const sp = findFreeEntitySpawn(camX + Math.sin(ang)*rad, camZ + Math.cos(ang)*rad, 0, 4);
+      entity.x = sp.x;
+      entity.z = sp.z;
       playEntitySound(0.6);
       if(droneOsc) droneOsc.frequency.setTargetAtTime(36, audioCtx.currentTime, 1.5);
     }
@@ -1653,7 +1678,8 @@ function updateEntity(dt){
   const len = Math.max(0.001, Math.sqrt(toX*toX + toZ*toZ));
   const baseX = toX/len, baseZ = toZ/len;
 
-  const wobble = Math.sin(totalTime*0.7 + entity.x*0.5)*0.35;
+  const wobbleAmt = clamp(dTarget/18, 0, 1) * 0.22;
+  const wobble = Math.sin(totalTime*0.7 + entity.x*0.5)*wobbleAmt;
   let dirX = baseX + (-baseZ)*wobble;
   let dirZ = baseZ + (baseX)*wobble;
   const dl = Math.sqrt(dirX*dirX + dirZ*dirZ) || 1;
@@ -2112,6 +2138,8 @@ function render(ts){
       gl.uniform1i(UNI.uObjType, 1);
       const entModel = M4.trans(IDENTITY, entity.x, 0, entity.z);
       entityMesh.draw(mvp, entModel);
+      gl.uniform1i(UNI.uObjType, 7);
+      entityEyesMesh.draw(mvp, entModel);
     }
   } else {
     gl.uniform1i(UNI.uObjType, 0);
